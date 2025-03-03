@@ -2,7 +2,7 @@ services:
   # MinIO Instance 1
   minio1:
     image: quay.io/minio/minio:latest
-    command: server --console-address ":9001" http://minio{1...4}/data
+    command: server --address ":9100" --console-address ":9101" http://minio{1...4}/data
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
@@ -14,7 +14,7 @@ services:
   # MinIO Instance 2
   minio2:
     image: quay.io/minio/minio:latest
-    command: server --console-address ":9001" http://minio{1...4}/data
+    command: server --address ":9100" --console-address ":9101" http://minio{1...4}/data
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
@@ -26,7 +26,7 @@ services:
   # MinIO Instance 3
   minio3:
     image: quay.io/minio/minio:latest
-    command: server --console-address ":9001" http://minio{1...4}/data
+    command: server --address ":9100" --console-address ":9101" http://minio{1...4}/data
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
@@ -38,7 +38,7 @@ services:
   # MinIO Instance 4
   minio4:
     image: quay.io/minio/minio:latest
-    command: server --console-address ":9001" http://minio{1...4}/data
+    command: server --address ":9100" --console-address ":9101" http://minio{1...4}/data
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
@@ -53,8 +53,8 @@ services:
     volumes:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     ports:
-      - "8200:9000"  # MinIO API (внутри контейнера 9000, снаружи 8200)
-      - "8201:9001"  # MinIO Console (внутри контейнера 9001, снаружи 8201)
+      - "8200:9100"  # MinIO API (внутри контейнера 9000, снаружи 8200)
+      - "8201:9101"  # MinIO Console (внутри контейнера 9001, снаружи 8201)
     networks:
       - minio-net
     depends_on:
