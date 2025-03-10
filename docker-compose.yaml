@@ -2,6 +2,7 @@ services:
   # MinIO Instance 1
   minio1:
     image: quay.io/minio/minio:latest
+    restart: always
     command: server --address ":9100" --console-address ":9101" http://minio{1...4}/data
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
@@ -14,6 +15,7 @@ services:
   # MinIO Instance 2
   minio2:
     image: quay.io/minio/minio:latest
+    restart: always
     command: server --address ":9100" --console-address ":9101" http://minio{1...4}/data
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
@@ -26,6 +28,7 @@ services:
   # MinIO Instance 3
   minio3:
     image: quay.io/minio/minio:latest
+    restart: always
     command: server --address ":9100" --console-address ":9101" http://minio{1...4}/data
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
@@ -38,6 +41,7 @@ services:
   # MinIO Instance 4
   minio4:
     image: quay.io/minio/minio:latest
+    restart: always
     command: server --address ":9100" --console-address ":9101" http://minio{1...4}/data
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
@@ -50,6 +54,7 @@ services:
   # HAProxy for MinIO Load Balancing
   haproxy:
     image: haproxy:latest
+    restart: always
     volumes:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     ports:
@@ -64,16 +69,20 @@ services:
       - minio4
 
   # Nexus Repository Manager
+
   nexus:
-    image: sonatype/nexus3:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
     container_name: nexus
     volumes:
       - nexus-data:/nexus-data
     ports:
-      - "9090:8081"   # Nexus Web UI (внутри контейнера 8081, снаружи 9090)
-      - "8082:8082"   # Docker repository HTTP остается без изменений
+      - "9090:8081"   # Nexus Web UI
+      - "8082:8082"   # Docker repository HTTP
     environment:
-      - INSTALL4J_ADD_VM_PARAMS=-Xms512m -Xmx2048m -XX:MaxDirectMemorySize=2g -Djava.util.prefs.userRoot=/nexus-data
+      - INSTALL4J_ADD_VM_PARAMS=-Xms1024m -Xmx2048m -XX:MaxDirectMemorySize=2g -Djava.util.prefs.userRoot=/nexus-data
     networks:
       - minio-net
 
