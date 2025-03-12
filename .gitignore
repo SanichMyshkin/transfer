@@ -27,3 +27,4 @@ Vagrantfile
 .env
 trash/
 cfg/
+*.todo
