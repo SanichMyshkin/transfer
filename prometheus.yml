@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s  # Частота сбора метрик
+
+scrape_configs:
+  - job_name: 'nexus'
+    metrics_path: '/service/metrics/prometheus'
+    static_configs:
+      - targets: ['sanich.space']  # Подключаем Nexus
+    basic_auth:
+      username: 'admin'  # 👈 Логин от Nexus
+      password: 'admin123'  # 👈 Пароль (или используй переменные окружения)
+
