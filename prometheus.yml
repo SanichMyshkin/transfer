@@ -6,7 +6,4 @@ scrape_configs:
     metrics_path: '/service/metrics/prometheus'
     static_configs:
       - targets: ['sanich.space']  # Подключаем Nexus
-    basic_auth:
-      username: 'admin'  # 👈 Логин от Nexus
-      password: 'admin123'  # 👈 Пароль (или используй переменные окружения)
 
