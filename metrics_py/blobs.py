@@ -1,17 +1,19 @@
 import requests
-import humanize
+import logging
 from prometheus_client import Gauge
 
 # Метрики
 BLOB_STORAGE_USAGE = Gauge(
     "nexus_blob_storage_usage",
     "Total used and available space in Nexus blob stores",
-    ["blob_name", "metric_type"]
+    ["blob_name", "metric_type", "blob_type", "blob_count"],
 )
 
 
 def fetch_blob_metrics(nexus_url, auth):
     """Получает список blobstore и обновляет метрики."""
+    logging.info("Получение списка blobstores...")
+
     try:
         response = requests.get(f"{nexus_url}/service/rest/v1/blobstores", auth=auth)
         response.raise_for_status()
@@ -21,12 +23,22 @@ def fetch_blob_metrics(nexus_url, auth):
             used_size = blob["totalSizeInBytes"]
             available_size = blob["availableSpaceInBytes"]
 
-            print(f"Blobstore: {blob['name']}")
-            print(f"  - Занято: {humanize.naturalsize(used_size, binary=True)}")
-            print(f"  - Доступно: {humanize.naturalsize(available_size, binary=True)}")
+            logging.info(
+                f"Blobstore '{blob['name']}': used={used_size}, available={available_size}"
+            )
 
-            BLOB_STORAGE_USAGE.labels(blob_name=blob["name"], metric_type="used").set(used_size)
-            BLOB_STORAGE_USAGE.labels(blob_name=blob["name"], metric_type="available").set(available_size)
+            BLOB_STORAGE_USAGE.labels(
+                blob_name=blob["name"],
+                metric_type="used",
+                blob_count=blob["blobCount"],
+                blob_type=blob["type"],
+            ).set(used_size)
+            BLOB_STORAGE_USAGE.labels(
+                blob_name=blob["name"],
+                metric_type="available",
+                blob_count=blob["blobCount"],
+                blob_type=blob["type"],
+            ).set(available_size)
 
     except requests.exceptions.RequestException as e:
-        print(f"Ошибка при получении данных о blobstore: {e}")
+        logging.error(f"Ошибка при получении данных о blobstore: {e}")
