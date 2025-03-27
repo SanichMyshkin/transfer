@@ -21,7 +21,8 @@ def check_url_status(url):
     try:
         response = requests.get(url, timeout=15)
         return response.status_code
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Ошибка при обращении к {url}: {e}")
         return 0
 
 
@@ -34,7 +35,8 @@ def fetch_repositories_metrics(nexus_url, auth):
         repositories = response.json()
 
         for repo in repositories:
-            normal_url = url_normalize(repo.get("url"))
+            # normal_url = url_normalize(nexus_url + "/service/rest/v1/search?repository="+ repo.get("name"))# так посути проверяет что внутри реп
+            normal_url = url_normalize(repo.get("url"))  # так выдает 404 в raw
             status_code = check_url_status(normal_url + "/")
 
             repo_name = repo.get("name", "unknown")
@@ -47,7 +49,9 @@ def fetch_repositories_metrics(nexus_url, auth):
             remote_url = repo.get("attributes", {}).get("proxy", {}).get("remoteUrl")
             if repo_type == "proxy" and remote_url:
                 remote_status = check_url_status(url_normalize(remote_url))
-                REMOTE_STATUS.labels(repo_name=repo_name, remote_url=remote_url).set(remote_status)
+                REMOTE_STATUS.labels(repo_name=repo_name, remote_url=remote_url).set(
+                    remote_status
+                )
                 logging.info(f"→ Proxy '{repo_name}' remote status: {remote_status}")
 
             REPO_STATUS.labels(
