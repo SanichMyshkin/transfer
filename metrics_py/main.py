@@ -8,6 +8,10 @@ from repositories_status import fetch_repositories_metrics
 from repositories_storage import fetch_repository_sizes
 from blobs import fetch_blob_metrics
 
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,

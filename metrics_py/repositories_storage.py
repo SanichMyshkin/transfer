@@ -1,6 +1,9 @@
 import requests
 import logging
 from prometheus_client import Gauge
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 
 # Метрика для размеров репозиториев
 REPO_STORAGE = Gauge(
@@ -13,7 +16,7 @@ REPO_STORAGE = Gauge(
 def nexus_api_call(nexus_url, endpoint, auth):
     url = f"{nexus_url}{endpoint}"
     try:
-        response = requests.get(url, auth=auth)
+        response = requests.get(url, auth=auth, verify=False)
         if response.status_code == 200:
             return response.json()
         else:

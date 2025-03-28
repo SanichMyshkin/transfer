@@ -1,6 +1,9 @@
 import requests
 import logging
 from prometheus_client import Gauge
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 
 # Метрики
 BLOB_STORAGE_USAGE = Gauge(
@@ -15,7 +18,7 @@ def fetch_blob_metrics(nexus_url, auth):
     logging.info("Получение списка blobstores...")
 
     try:
-        response = requests.get(f"{nexus_url}/service/rest/v1/blobstores", auth=auth)
+        response = requests.get(f"{nexus_url}/service/rest/v1/blobstores", auth=auth, verify=False)
         response.raise_for_status()
         blobstores = response.json()
 

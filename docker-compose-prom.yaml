@@ -1,0 +1,55 @@
+services:
+  # Nexus Metrics
+  nexus-metrics:
+    image: nexus-metrics
+    container_name: nexus-metrics
+    restart: always
+    environment:
+      - NEXUS_USERNAME=admin
+      - NEXUS_PASSWORD=admin123
+      - NEXUS_API_URL=http://sanich.space/
+      - TIME_RUN_STORAGE=23:00
+    ports:
+      - "8000:8000"
+    networks:
+      - minio-net
+    depends_on:
+      - nexus
+
+  # Prometheus - Сбор метрик
+  prometheus:
+    image: prom/prometheus:latest
+    restart: always
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9091:9090"  # Доступ к веб-интерфейсу Prometheus
+    networks:
+      - minio-net
+    depends_on:
+      - nexus
+      - nexus-metrics
+
+  # Grafana - Визуализация метрик
+  grafana:
+    image: grafana/grafana:latest
+    restart: always
+    container_name: grafana
+    ports:
+      - "3000:3000"  # Доступ к веб-интерфейсу Grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - minio-net
+    depends_on:
+      - prometheus
+
+volumes:
+  grafana-data:
+
+networks:
+  minio-net:

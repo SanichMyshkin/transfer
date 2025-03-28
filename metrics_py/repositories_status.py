@@ -2,6 +2,9 @@ import requests
 import logging
 from prometheus_client import Gauge
 from url_normalize import url_normalize
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 
 # Метрики
 REPO_STATUS = Gauge(
@@ -19,7 +22,7 @@ REMOTE_STATUS = Gauge(
 
 def check_url_status(url):
     try:
-        response = requests.get(url, timeout=15)
+        response = requests.get(url, timeout=15, verify=False)
         return response.status_code
     except requests.exceptions.RequestException as e:
         logging.error(f"Ошибка при обращении к {url}: {e}")
@@ -30,7 +33,7 @@ def fetch_repositories_metrics(nexus_url, auth):
     logging.info("Получение списка репозиториев...")
 
     try:
-        response = requests.get(f"{nexus_url}/service/rest/v1/repositories", auth=auth)
+        response = requests.get(f"{nexus_url}/service/rest/v1/repositories", auth=auth, verify=False)
         response.raise_for_status()
         repositories = response.json()
 
