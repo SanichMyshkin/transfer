@@ -53,3 +53,46 @@ volumes:
 
 networks:
   minio-net:
+
+
+
+.PHONY: all run-volumes run-prometheus run-grafana run-metrics clean
+
+# Конфиги и переменные
+PROMETHEUS_CONFIG=prometheus.yml
+NEXUS_URL=http://sanich.space/
+
+all: run-volumes run-metrics run-prometheus run-grafana
+
+run-volumes:
+	docker volume create grafana-data || true
+
+run-metrics:
+	docker run -d \
+		--name nexus-metrics \
+		-p 8000:8000 \
+		-e NEXUS_USERNAME=admin \
+		-e NEXUS_PASSWORD=admin123 \
+		-e NEXUS_API_URL=$(NEXUS_URL) \
+		-e TIME_RUN_STORAGE=23:00 \
+		nexus-metrics
+
+run-prometheus:
+	docker run -d \
+		--name prometheus \
+		-p 9091:9090 \
+		-v $(PWD)/$(PROMETHEUS_CONFIG):/etc/prometheus/prometheus.yml:ro \
+		prom/prometheus:latest
+
+run-grafana:
+	docker run -d \
+		--name grafana \
+		-p 3000:3000 \
+		-e GF_SECURITY_ADMIN_USER=admin \
+		-e GF_SECURITY_ADMIN_PASSWORD=admin123 \
+		-v grafana-data:/var/lib/grafana \
+		grafana/grafana:latest
+
+clean:
+	-docker rm -f grafana prometheus nexus-metrics
+	-docker volume rm grafana-data || true
