@@ -2,9 +2,7 @@ import requests
 import logging
 from prometheus_client import Gauge
 import urllib3
-import json
-from pathlib import Path
-
+from db import get_repository_sizes
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -17,7 +15,7 @@ logging.basicConfig(
 REPO_STORAGE = Gauge(
     "nexus_repo_size",
     "Total size of Nexus repositories in bytes",
-    ["repo_name", "repo_type", "repo_format", "repo_blob_name"],
+    ["repo_name", "repo_type", "repo_format", "repo_blob_name", "repo_cleanup"],
 )
 
 
@@ -29,28 +27,14 @@ def nexus_api_call(nexus_url, endpoint, auth):
         if response.status_code == 200:
             return response.json()
         else:
-            logging.warning(f"Ошибка при запросе {endpoint}: {response.status_code}")
+            logging.warning(f"Ошибка при запросе {endpoint}: {response.status_code} - {response.text}")
             return None
     except requests.exceptions.RequestException as e:
         logging.error(f"Ошибка при вызове {endpoint}: {e}")
         return None
 
 
-def get_repo_size(file_path):
-    path = Path(file_path)
-    with open(path, "r") as f:
-        data = json.load(f)
-
-    result = {}
-    for repositories in data.values():
-        repo = repositories["repositories"]
-        for name, size in repo.items():
-            result[name] = size["totalBytesMB"]
-    return result
-
-
-
-def fetch_repository_sizes(nexus_url, auth, path_file):
+def fetch_repository_sizes(nexus_url, db_url, auth):
     """Запрашивает список репозиториев и собирает их размеры."""
     logging.info("Получение списка репозиториев...")
 
@@ -64,29 +48,43 @@ def fetch_repository_sizes(nexus_url, auth, path_file):
 
     logging.info(f"Найдено {len(repositories)} репозиториев.")
 
-    all_repo_size = get_repo_size(path_file)
+    dict_repo_size = get_repository_sizes(db_url)
 
     for repo in repositories:
-        repo_name = repo.get("name")
-        repo_type = repo.get("type", "unknown")
-        repo_format = repo.get("format", "unknown")
-        storage_info = repo.get("storage", "unknown")
-        repo_blob_name = storage_info.get("blobStoreName", "unknown")
-        repo_size = all_repo_size.get(repo_name, 'unknow')
+        if not isinstance(repo, dict):
+            logging.warning(f"Пропущен некорректный объект: {repo}")
+            continue
 
+        repo_name = repo.get("name")
         if not repo_name:
             logging.warning(f"Пропущен репозиторий без имени: {repo}")
             continue
 
+        repo_type = repo.get("type")
+        repo_format = repo.get("format")
+
+        # Обработка repo_cleanup
+        repo_cleanup = repo.get("cleanup")
+        if isinstance(repo_cleanup, dict):
+            repo_cleanup = repo_cleanup.get("policyNames")
+
+        # Обработка storage
+        storage_info = repo.get("storage")
+        if isinstance(storage_info, dict):
+            repo_blob_name = storage_info.get("blobStoreName")
+
+        repo_size = dict_repo_size.get(repo_name, 0)
+
         logging.info(
-            f"Обрабатываем репозиторий: {repo_name} (type={repo_type}, format={repo_format})"
+            f"Обрабатываем репозиторий: {repo_name} (type={repo_type}, format={repo_format}, size={repo_size})"
         )
 
-        
         REPO_STORAGE.labels(
             repo_name=repo_name,
             repo_type=repo_type,
             repo_format=repo_format,
             repo_blob_name=repo_blob_name,
+            repo_cleanup=repo_cleanup,
         ).set(repo_size)
+
         logging.info(f"Метрика обновлена: {repo_name} (size={repo_size})")
