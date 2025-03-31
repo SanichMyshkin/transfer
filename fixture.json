@@ -1,0 +1,729 @@
+{
+    "camundabpm": {
+        "totalBlobStoreBytesMB": 298134.70289897918701171875,
+        "totalReclaimableBytesMB": 0.0071964263916015625,
+        "repositories": {
+            "camunda-npm": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "camunda.nuget-hosted": {
+                "totalBytesMB": 43.6685581207275390625,
+                "reclaimableBytesMB": 0
+            },
+            "camunda-docker-hosted": {
+                "totalBytesMB": 256221.18537044525146484375,
+                "reclaimableBytesMB": 0
+            },
+            "camunda.nuget-proxy": {
+                "totalBytesMB": 0.523288726806640625,
+                "reclaimableBytesMB": 0.0071964263916015625
+            },
+            "pypi-repo": {
+                "totalBytesMB": 77.79757595062255859375,
+                "reclaimableBytesMB": 0
+            },
+            "camunda-npm-npmjs": {
+                "totalBytesMB": 1029.42728900909423828125,
+                "reclaimableBytesMB": 0
+            },
+            "camunda-raw-hosted": {
+                "totalBytesMB": 11805.517578125,
+                "reclaimableBytesMB": 0
+            },
+            "camunda-maven": {
+                "totalBytesMB": 0.01380157470703125,
+                "reclaimableBytesMB": 0
+            },
+            "camunda.nuget-group": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "proxy-pypi-camunda": {
+                "totalBytesMB": 0.001605987548828125,
+                "reclaimableBytesMB": 0
+            },
+            "camunda-helm-hosted": {
+                "totalBytesMB": 0.00266265869140625,
+                "reclaimableBytesMB": 0
+            },
+            "camundabpm-maven-hosted": {
+                "totalBytesMB": 28034.54894542694091796875,
+                "reclaimableBytesMB": 0
+            },
+            "camunda-npm-group": {
+                "totalBytesMB": 922.01622295379638671875,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "e-archive": {
+        "totalBlobStoreBytesMB": 93267.660564422607421875,
+        "totalReclaimableBytesMB": 820.9855194091796875,
+        "repositories": {
+            "e-archive-raw-hosted": {
+                "totalBytesMB": 27598.23515224456787109375,
+                "reclaimableBytesMB": 378.720703125
+            },
+            "e-archive-maven-hosted": {
+                "totalBytesMB": 14040.6732158660888671875,
+                "reclaimableBytesMB": 442.2533435821533203125
+            },
+            "e-archive-docker-hosted": {
+                "totalBytesMB": 51628.75219631195068359375,
+                "reclaimableBytesMB": 0.0114727020263671875
+            }
+        }
+    },
+    "farzoom-common": {
+        "totalBlobStoreBytesMB": 88548.94097423553466796875,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "farzoom-common": {
+                "totalBytesMB": 88548.94097423553466796875,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "credconv-img": {
+        "totalBlobStoreBytesMB": 73106.68426418304443359375,
+        "totalReclaimableBytesMB": 0.0017108917236328125,
+        "repositories": {
+            "credconv-docker-hosted": {
+                "totalBytesMB": 73106.68426418304443359375,
+                "reclaimableBytesMB": 0.0017108917236328125
+            }
+        }
+    },
+    "dboul": {
+        "totalBlobStoreBytesMB": 59664.209438323974609375,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "DBOUL-13651": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "dboul-docker-hosted": {
+                "totalBytesMB": 59664.209438323974609375,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "intgr": {
+        "totalBlobStoreBytesMB": 57379.762664794921875,
+        "totalReclaimableBytesMB": 686.6838626861572265625,
+        "repositories": {
+            "intgr-raw-hosted": {
+                "totalBytesMB": 9630.68359375,
+                "reclaimableBytesMB": 178.232421875
+            },
+            "intgr-maven-hosted": {
+                "totalBytesMB": 2090.494598388671875,
+                "reclaimableBytesMB": 508.4514408111572265625
+            },
+            "intgr-docker-hosted": {
+                "totalBytesMB": 45658.58447265625,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "ml-platform": {
+        "totalBlobStoreBytesMB": 51946.07388401031494140625,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "ml-platform-docker-hosted": {
+                "totalBytesMB": 51946.07388401031494140625,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "credconv": {
+        "totalBlobStoreBytesMB": 46591.2036952972412109375,
+        "totalReclaimableBytesMB": 1650.59990024566650390625,
+        "repositories": {
+            "credconv-maven-hosted": {
+                "totalBytesMB": 15870.31517505645751953125,
+                "reclaimableBytesMB": 824.80888462066650390625
+            },
+            "credconv-raw-hosted": {
+                "totalBytesMB": 23474.50940227508544921875,
+                "reclaimableBytesMB": 825.791015625
+            },
+            "credconv-npm-hosted": {
+                "totalBytesMB": 7246.3791179656982421875,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "docker-proxy": {
+        "totalBlobStoreBytesMB": 38931.24477481842041015625,
+        "totalReclaimableBytesMB": 0.0025272369384765625,
+        "repositories": {
+            "docker-io-proxy": {
+                "totalBytesMB": 25662.04249286651611328125,
+                "reclaimableBytesMB": 0.00102901458740234375
+            },
+            "registry.bloomtech.ru": {
+                "totalBytesMB": 575.7220001220703125,
+                "reclaimableBytesMB": 0
+            },
+            "registry.deckhouse.ru": {
+                "totalBytesMB": 6405.638427734375,
+                "reclaimableBytesMB": 0.00149822235107421875
+            },
+            "quay-io-proxy": {
+                "totalBytesMB": 5927.33818721771240234375,
+                "reclaimableBytesMB": 0
+            },
+            "k8s-registry-proxy": {
+                "totalBytesMB": 59.42173480987548828125,
+                "reclaimableBytesMB": 0
+            },
+            "mcr.microsoft.com": {
+                "totalBytesMB": 301.08193206787109375,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "common": {
+        "totalBlobStoreBytesMB": 31081.55571842193603515625,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "common": {
+                "totalBytesMB": 31081.55571842193603515625,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "registry-datasapience-ru": {
+        "totalBlobStoreBytesMB": 12177.9856739044189453125,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "datasapience-docker-proxy": {
+                "totalBytesMB": 12177.9856739044189453125,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "zeus": {
+        "totalBlobStoreBytesMB": 12071.77578830718994140625,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "zeus-docker-hosted": {
+                "totalBytesMB": 12071.77578830718994140625,
+                "reclaimableBytesMB": 0
+            },
+            "ZEUSMONITORING-00000": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "default": {
+        "totalBlobStoreBytesMB": 11216.4530735015869140625,
+        "totalReclaimableBytesMB": 187.17140865325927734375,
+        "repositories": {
+            "webplayer-debian-stretch": {
+                "totalBytesMB": 0.00762844085693359375,
+                "reclaimableBytesMB": 0
+            },
+            "osf": {
+                "totalBytesMB": 4055.2027912139892578125,
+                "reclaimableBytesMB": 0
+            },
+            "storage.googleapis.com": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "mirror.yandex.ru_debian": {
+                "totalBytesMB": 172.98549175262451171875,
+                "reclaimableBytesMB": 0
+            },
+            "googlechromelabs.github.io": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "maven-snapshots": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "maven-central": {
+                "totalBytesMB": 5834.35368251800537109375,
+                "reclaimableBytesMB": 123.4685420989990234375
+            },
+            "nuget-hosted": {
+                "totalBytesMB": 0.4016742706298828125,
+                "reclaimableBytesMB": 0
+            },
+            "pypi-proxy": {
+                "totalBytesMB": 998.39376163482666015625,
+                "reclaimableBytesMB": 63.46889495849609375
+            },
+            "internal": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "nuget.org-proxy": {
+                "totalBytesMB": 0.0071964263916015625,
+                "reclaimableBytesMB": 0.0071964263916015625
+            },
+            "anaconda": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "fuse": {
+                "totalBytesMB": 0.06090259552001953125,
+                "reclaimableBytesMB": 0
+            },
+            "nuget-group": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "redhat-ga": {
+                "totalBytesMB": 0.00392055511474609375,
+                "reclaimableBytesMB": 0
+            },
+            "goural": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "redhat-ea": {
+                "totalBytesMB": 0.326141357421875,
+                "reclaimableBytesMB": 0
+            },
+            "maven-releases": {
+                "totalBytesMB": 18.72547435760498046875,
+                "reclaimableBytesMB": 0
+            },
+            "jenkins-io-proxy": {
+                "totalBytesMB": 135.97728633880615234375,
+                "reclaimableBytesMB": 0.22677516937255859375
+            },
+            "mirror.yandex_centos": {
+                "totalBytesMB": 0.007122039794921875,
+                "reclaimableBytesMB": 0
+            },
+            "maven-public": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "kimb": {
+        "totalBlobStoreBytesMB": 4679.60488796234130859375,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "kimb-dependencies": {
+                "totalBytesMB": 4679.60488796234130859375,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "sredevops": {
+        "totalBlobStoreBytesMB": 4357.7759456634521484375,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "kubernetes-github-io": {
+                "totalBytesMB": 0.19510936737060546875,
+                "reclaimableBytesMB": 0
+            },
+            "sredevops-docker-hosted": {
+                "totalBytesMB": 4357.58083629608154296875,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "registry-web3tech-ru": {
+        "totalBlobStoreBytesMB": 3353.2671260833740234375,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "web3tech-docker-proxy": {
+                "totalBytesMB": 3353.2671260833740234375,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "sugar": {
+        "totalBlobStoreBytesMB": 2650.22992801666259765625,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "sugar-docker-hosted": {
+                "totalBytesMB": 2650.22992801666259765625,
+                "reclaimableBytesMB": 0
+            },
+            "SUGARCRM-10510": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "registry-npmjs-org": {
+        "totalBlobStoreBytesMB": 2560.1758136749267578125,
+        "totalReclaimableBytesMB": 270.22293376922607421875,
+        "repositories": {
+            "registry-npmjs-org-proxy": {
+                "totalBytesMB": 2560.1758136749267578125,
+                "reclaimableBytesMB": 270.22293376922607421875
+            }
+        }
+    },
+    "maven-proxy": {
+        "totalBlobStoreBytesMB": 1452.22441959381103515625,
+        "totalReclaimableBytesMB": 0.398731231689453125,
+        "repositories": {
+            "plugins-gradle-org": {
+                "totalBytesMB": 2.3988704681396484375,
+                "reclaimableBytesMB": 0.0012836456298828125
+            },
+            "maven-google-com": {
+                "totalBytesMB": 48.26369476318359375,
+                "reclaimableBytesMB": 0
+            },
+            "isimplelab-libs-snapshot": {
+                "totalBytesMB": 9.7830600738525390625,
+                "reclaimableBytesMB": 0
+            },
+            "isimplelab-libs-release": {
+                "totalBytesMB": 1386.151378631591796875,
+                "reclaimableBytesMB": 0.3974475860595703125
+            },
+            "repo.maven.apache.org": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "isimplelab-plugins-snapshot": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "scala.jfrog.io": {
+                "totalBytesMB": 0.01390838623046875,
+                "reclaimableBytesMB": 0
+            },
+            "maven-central-group": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "isimplelab-plugins-release": {
+                "totalBytesMB": 0.4437389373779296875,
+                "reclaimableBytesMB": 0
+            },
+            "repo-isimplelab-com": {
+                "totalBytesMB": 0.00618839263916015625,
+                "reclaimableBytesMB": 0
+            },
+            "repo.scala-sbt.org": {
+                "totalBytesMB": 5.1635799407958984375,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "registry-isimplelab-com": {
+        "totalBlobStoreBytesMB": 1305.55693149566650390625,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "isimplelab-docker-proxy": {
+                "totalBytesMB": 1305.55693149566650390625,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "services-gradle-org": {
+        "totalBlobStoreBytesMB": 1217.3551731109619140625,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "services-gradle-org": {
+                "totalBytesMB": 1217.3551731109619140625,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "newcrm": {
+        "totalBlobStoreBytesMB": 1188.19051837921142578125,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "CRM-15477": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "newcrm-docker-hosted": {
+                "totalBytesMB": 1188.19051837921142578125,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "webplayer": {
+        "totalBlobStoreBytesMB": 356.9421482086181640625,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "webplayer-npm-group": {
+                "totalBytesMB": 353.5784912109375,
+                "reclaimableBytesMB": 0
+            },
+            "webplayer-nuget-group": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "webplayer-nuget-local": {
+                "totalBytesMB": 3.34444713592529296875,
+                "reclaimableBytesMB": 0
+            },
+            "webplayer-npm-local": {
+                "totalBytesMB": 0.01920986175537109375,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "github-com": {
+        "totalBlobStoreBytesMB": 316.725795745849609375,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "github-com": {
+                "totalBytesMB": 316.725795745849609375,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "composer-proxy": {
+        "totalBlobStoreBytesMB": 160.6263370513916015625,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "packagist-org": {
+                "totalBytesMB": 160.6263370513916015625,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "nuget-org": {
+        "totalBlobStoreBytesMB": 93.1206836700439453125,
+        "totalReclaimableBytesMB": 0.0071964263916015625,
+        "repositories": {
+            "nuget-org-v3-proxy": {
+                "totalBytesMB": 93.1206836700439453125,
+                "reclaimableBytesMB": 0.0071964263916015625
+            }
+        }
+    },
+    "apk-proxy": {
+        "totalBlobStoreBytesMB": 90.59426975250244140625,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "dl-cdn-alpinelinux-org": {
+                "totalBytesMB": 90.59426975250244140625,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "raw-proxy": {
+        "totalBlobStoreBytesMB": 34.1653385162353515625,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "www.cpan.org": {
+                "totalBytesMB": 0.03208827972412109375,
+                "reclaimableBytesMB": 0
+            },
+            "nodejs.org": {
+                "totalBytesMB": 20.4388980865478515625,
+                "reclaimableBytesMB": 0
+            },
+            "dl-cdn.alpinelinux.org": {
+                "totalBytesMB": 0.00259113311767578125,
+                "reclaimableBytesMB": 0
+            },
+            "raw-githubusercontent-com": {
+                "totalBytesMB": 0.47000885009765625,
+                "reclaimableBytesMB": 0
+            },
+            "mirror-yandex-ubuntu-releases": {
+                "totalBytesMB": 0.00471591949462890625,
+                "reclaimableBytesMB": 0
+            },
+            "dl.google.com": {
+                "totalBytesMB": 13.21703624725341796875,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "apt-proxy": {
+        "totalBlobStoreBytesMB": 30.5585308074951171875,
+        "totalReclaimableBytesMB": 30.55623912811279296875,
+        "repositories": {
+            "archive.debian.org": {
+                "totalBytesMB": 30.5585308074951171875,
+                "reclaimableBytesMB": 30.55623912811279296875
+            }
+        }
+    },
+    "rubygems-org": {
+        "totalBlobStoreBytesMB": 7.1951808929443359375,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "rubygems-org": {
+                "totalBytesMB": 7.1951808929443359375,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "apt": {
+        "totalBlobStoreBytesMB": 3.3291759490966796875,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "mirror.yandex.ru": {
+                "totalBytesMB": 3.3291759490966796875,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "yum-proxy": {
+        "totalBlobStoreBytesMB": 0.085002899169921875,
+        "totalReclaimableBytesMB": 0.032581329345703125,
+        "repositories": {
+            "packages-gitlab-com": {
+                "totalBytesMB": 0.085002899169921875,
+                "reclaimableBytesMB": 0.032581329345703125
+            },
+            "vault-centos-org": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "shared-raw": {
+        "totalBlobStoreBytesMB": 0.0318012237548828125,
+        "totalReclaimableBytesMB": 0.02587890625,
+        "repositories": {
+            "shared-raw-hosted": {
+                "totalBytesMB": 0.0318012237548828125,
+                "reclaimableBytesMB": 0.02587890625
+            }
+        }
+    },
+    "packages-graylog2-org": {
+        "totalBlobStoreBytesMB": 0.003192901611328125,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "packages-graylog2-org": {
+                "totalBytesMB": 0.003192901611328125,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "repo-mongodb-org": {
+        "totalBlobStoreBytesMB": 0.0028476715087890625,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "repo-mongodb-org": {
+                "totalBytesMB": 0.0028476715087890625,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "artifacts-opensearch-org": {
+        "totalBlobStoreBytesMB": 0,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "artifacts-opensearch-org": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "repo-datasapience-ru": {
+        "totalBlobStoreBytesMB": 0,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "datasapience-app-docs": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "repo-datasapience-ru": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "datasapience-infra-docs": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "datasapience-gp-raw-public": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "golang": {
+        "totalBlobStoreBytesMB": 0,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "go-goproxy-golang-org": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "go-pkg-go-dev": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            },
+            "golang-gonexus-dev": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "mobileapp": {
+        "totalBlobStoreBytesMB": 0,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "mobileapp": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "registry-astralinux-ru": {
+        "totalBlobStoreBytesMB": 0,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "astralinux-docker-proxy": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "hinted": {
+        "totalBlobStoreBytesMB": 0,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "hinted-docker-proxy": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "helm-proxy": {
+        "totalBlobStoreBytesMB": 0,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "artifacthub.io": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "victoriametrics-github-io": {
+        "totalBlobStoreBytesMB": 0,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "victoriametrics-github-io": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            }
+        }
+    },
+    "docker-registry-group": {
+        "totalBlobStoreBytesMB": 0,
+        "totalReclaimableBytesMB": 0,
+        "repositories": {
+            "docker-registry": {
+                "totalBytesMB": 0,
+                "reclaimableBytesMB": 0
+            }
+        }
+    }}
