@@ -58,8 +58,8 @@ services:
     volumes:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     ports:
-      - "8200:9100"  # MinIO API (внутри контейнера 9000, снаружи 8200)
-      - "8201:9101"  # MinIO Console (внутри контейнера 9001, снаружи 8201)
+      - "8200:9100"  # MinIO API
+      - "8201:9101"  # MinIO Console
     networks:
       - minio-net
     depends_on:
@@ -69,13 +69,12 @@ services:
       - minio4
 
   # Nexus Repository Manager
-
   nexus:
     image: sonatype/nexus3:3.77.0
     restart: unless-stopped
     container_name: nexus
     volumes:
-      - ./nexus-data:/nexus-data # sudo chown -R 200:200 nexus-data/
+      - ./nexus-data:/nexus-data
     ports:
       - "9090:8081"
       - "8082:8082"
@@ -86,17 +85,17 @@ services:
       - NEXUS_DATASTORE_NEXUS_USERNAME=${POSTGRES_USER}
       - NEXUS_DATASTORE_NEXUS_PASSWORD=${POSTGRES_PASSWORD}
     networks:
-      - minio-net  
+      - minio-net
     depends_on:
       - postgres
 
-
+  # Nginx proxy
   nginx:
     image: nginx:latest
     restart: always
     container_name: nginx
     ports:
-      - "80:80"  # Проксирование запросов на Nexus через Nginx
+      - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
@@ -104,7 +103,7 @@ services:
     depends_on:
       - nexus
 
-
+  # PostgreSQL database
   postgres:
     image: postgres:16
     container_name: postgres
@@ -113,32 +112,52 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
     volumes:
       - ./pg_data:/var/lib/postgresql/data
     networks:
       - minio-net
 
-  # Prometheus - Сбор метрик
-  prometheus:
-    image: prom/prometheus:latest
+  # VictoriaMetrics вместо Prometheus
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:latest
     restart: always
-    container_name: prometheus
+    container_name: victoriametrics
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./victoria-metrics-data:/storage
     ports:
-      - "9091:9090"  # Доступ к веб-интерфейсу Prometheus
+      - "9091:8428"  # VictoriaMetrics UI и API
     networks:
       - minio-net
+    command:
+      - "-storageDataPath=/storage"
+      - "-retentionPeriod=1"
     depends_on:
       - nexus
 
-  # Grafana - Визуализация метрик
+  # VM Agent для сбора метрик
+  vmagent:
+    image: victoriametrics/vmagent:latest
+    restart: always
+    container_name: vmagent
+    volumes:
+      - ./vmagent-config.yml:/etc/vmagent/config.yml:ro
+    command:
+      - "-remoteWrite.url=http://victoriametrics:8428/api/v1/write"
+      - "-promscrape.config=/etc/vmagent/config.yml"
+    networks:
+      - minio-net
+    depends_on:
+      - victoriametrics
+
+  # Grafana для визуализации
   grafana:
     image: grafana/grafana:latest
     restart: always
     container_name: grafana
     ports:
-      - "3000:3000"  # Доступ к веб-интерфейсу Grafana
+      - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin123
@@ -146,8 +165,9 @@ services:
       - grafana-data:/var/lib/grafana
     networks:
       - minio-net
+    depends_on:
+      - victoriametrics
 
-  
 volumes:
   minio1-data:
   minio2-data:
@@ -156,6 +176,7 @@ volumes:
   nexus-data:
   postgres-data:
   grafana-data:
+  victoria-metrics-data:
 
 networks:
   minio-net:

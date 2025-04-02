@@ -223,3 +223,6 @@ VACUUM(FULL, ANALYZE, VERBOSE);
 
 Теперь ваша база данных использует внешнюю PostgreSQL
 ![alt text](/migration/image-8.png)
+
+
+ВАЖНО
