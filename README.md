@@ -224,5 +224,41 @@ VACUUM(FULL, ANALYZE, VERBOSE);
 Теперь ваша база данных использует внешнюю PostgreSQL
 ![alt text](/migration/image-8.png)
 
+Далее необходимо запатчить Nexus, так как в нем сотит ограничение на 200.000 запросов в сутки, что для корпоративных сред является очень мелким значением
+![alt text](/migration/image9.png)
 
-ВАЖНО
+Для это необходимо войти в базу данных любым удобным способом
+
+```bash
+docker exec -it postgres psql -U nexus -d nexus
+```
+
+ - 1. Создаем функцию 
+```sql
+CREATE OR REPLACE FUNCTION change_metrics_log()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.metric_value = NEW.metric_value / 1000;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+ - 2. Cоздаём триггер на таблице `METRICS_LOG`
+```sql
+CREATE TRIGGER trg_divide_metrics_log
+BEFORE INSERT ON METRICS_LOG
+FOR EACH ROW
+EXECUTE FUNCTION change_metrics_log();
+```
+
+- 3. Cоздаём триггер на таблице `aggregated_metrics`
+```sql
+CREATE TRIGGER trg_divide_aggmetrics_log
+BEFORE INSERT ON aggregated_metrics
+FOR EACH ROW
+EXECUTE FUNCTION change_metrics_log();
+```
+
+> С этого момента подсчёт количества компонентов и обращений будет делится на 1000
+
+
