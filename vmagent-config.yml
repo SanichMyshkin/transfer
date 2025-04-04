@@ -4,7 +4,8 @@ global:
 scrape_configs:
   - job_name: 'nexus'
     basic_auth:
-
+      username: admin
+      password: admin123
     metrics_path: '/service/metrics/prometheus'
     static_configs:
       - targets: ['sanich.space', 'sanich.space:8000']

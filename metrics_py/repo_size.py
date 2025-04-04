@@ -31,7 +31,7 @@ def fetch_nexus_data(nexus_url, endpoint, auth):
     """Выполняет GET-запрос к Nexus API и возвращает ответ в формате JSON."""
     url = f"{nexus_url}{endpoint}"
     try:
-        response = requests.get(url, auth=auth, verify=False)
+        response = requests.get(url, auth=auth, verify=False, timeout=15)
         if response.status_code == 200:
             return response.json()
         else:

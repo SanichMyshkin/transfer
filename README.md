@@ -233,7 +233,7 @@ VACUUM(FULL, ANALYZE, VERBOSE);
 docker exec -it postgres psql -U nexus -d nexus
 ```
 
- - 1. Создаем функцию 
+1. Создаем функцию 
 ```sql
 CREATE OR REPLACE FUNCTION change_metrics_log()
 RETURNS TRIGGER AS $$
@@ -243,7 +243,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ```
- - 2. Cоздаём триггер на таблице `METRICS_LOG`
+2. Cоздаём триггер на таблице `METRICS_LOG`
 ```sql
 CREATE TRIGGER trg_divide_metrics_log
 BEFORE INSERT ON METRICS_LOG
@@ -251,7 +251,7 @@ FOR EACH ROW
 EXECUTE FUNCTION change_metrics_log();
 ```
 
-- 3. Cоздаём триггер на таблице `aggregated_metrics`
+3. Cоздаём триггер на таблице `aggregated_metrics`
 ```sql
 CREATE TRIGGER trg_divide_aggmetrics_log
 BEFORE INSERT ON aggregated_metrics
@@ -261,4 +261,9 @@ EXECUTE FUNCTION change_metrics_log();
 
 > С этого момента подсчёт количества компонентов и обращений будет делится на 1000
 
+Что бы обновить текущий счетчик обращений:
+```sql
+TRUNCATE TABLE METRICS_LOG;
+TRUNCATE TABLE AGGREGATED_METRICS;
+```
 
