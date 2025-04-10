@@ -1,6 +1,10 @@
 import requests
 import logging
+import urllib3
 from prometheus_client import Gauge
+
+# Отключение предупреждений об SSL
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
@@ -20,7 +24,7 @@ def get_all_repositories(nexus_url, auth):
     """Получает все репозитории через API Nexus"""
     repos_url = f"{nexus_url}service/rest/v1/repositories"
     try:
-        response = requests.get(repos_url, auth=auth, timeout=10)
+        response = requests.get(repos_url, auth=auth, timeout=10, verify=False)
         if response.status_code == 200:
             repos_data = response.json()
             logger.info(f"✅ Получены репозитории: {len(repos_data)}")
@@ -39,7 +43,7 @@ def check_repo_status(repo_url, repo_name, auth, repo_type, repo_format):
     """Проверяет статус репозитория через GET-запрос"""
     check_url = f"{repo_url}service/rest/repository/browse/{repo_name}"
     try:
-        response = requests.get(check_url, auth=auth, timeout=10)
+        response = requests.get(check_url, auth=auth, timeout=10, verify=False)
         if response.status_code == 200:
             logger.info(
                 f"✅ Репозиторий {repo_name} работает. Статус {response.status_code}"

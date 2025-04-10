@@ -1,7 +1,11 @@
 import requests
 import socket
 import logging
+import urllib3
 from prometheus_client import Gauge
+
+# Отключение предупреждений об SSL
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Прометеус метрики
 REPO_STATUS = Gauge(
@@ -29,7 +33,7 @@ def get_all_repositories(nexus_url, auth):
     nexus_endpoint = f"{nexus_url}/service/rest/v1/repositories"
     
     try:
-        response = requests.get(nexus_endpoint, auth=auth, timeout=10)
+        response = requests.get(nexus_endpoint, auth=auth, timeout=10, verify=False)
         response.raise_for_status()
     except requests.RequestException as e:
         logger.error(f"❌ Ошибка при запросе Nexus: {e}")
@@ -76,7 +80,7 @@ def fetch_status(repo, auth):
 
     # Проверка локального репозитория
     try:
-        response = requests.get(repo["url"], auth=auth, timeout=10)
+        response = requests.get(repo["url"], auth=auth, timeout=10, verify=False)
         if response.status_code == 200:
             nexus_status = "✅"
             logger.info(f"✅ Репозиторий {repo['name']} доступен в Nexus.")
@@ -88,7 +92,7 @@ def fetch_status(repo, auth):
     # Проверка удалённого источника
     if repo["remote"] and is_domain_resolvable(repo["remote"]):
         try:
-            response = requests.get(repo["remote"], timeout=10)
+            response = requests.get(repo["remote"], timeout=10, verify=False)
             if response.status_code == 200:
                 remote_status = "✅"
                 logger.info(f"✅ Репозиторий {repo['name']} доступен по удалённому источнику.")
