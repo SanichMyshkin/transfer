@@ -21,6 +21,12 @@ REPO_STATUS = Gauge(
     ],
 )
 
+REPO_COUNT = Gauge(
+    "nexus_repo_count",
+    "Количество репозиториев по типу",
+    ["repo_type"]
+)
+
 # Логирование
 logging.basicConfig(
     level=logging.INFO,
@@ -30,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_all_repositories(nexus_url, auth):
-    """Получает список прокси-репозиториев из Nexus"""
+    """Получает список репозиториев из Nexus"""
     endpoint = f"{nexus_url}/service/rest/v1/repositories"
 
     try:
@@ -41,24 +47,34 @@ def get_all_repositories(nexus_url, auth):
         return []
 
     repos = response.json()
-    return [
+
+    # Подсчёт репозиториев по типам
+    type_counts = {}
+    for repo in repos:
+        repo_type = repo.get("type", "unknown")
+        type_counts[repo_type] = type_counts.get(repo_type, 0) + 1
+
+    for repo_type, count in type_counts.items():
+        REPO_COUNT.labels(repo_type=repo_type).set(count)
+        logger.info(f"📊 Репозиториев типа '{repo_type}': {count}")
+
+    proxy_repos = [
         {
             "name": repo["name"],
             "url": f"{nexus_url}service/rest/repository/browse/{repo['name']}/",
             "type": repo["format"],
-            "remote": (
-                f"{repo.get('attributes', {}).get('proxy', {}).get('remoteUrl', '')}/v2"
-                if repo["format"] == "docker"
-                else repo.get("attributes", {}).get("proxy", {}).get("remoteUrl", "")
-            ),
+            "remote": repo.get("attributes", {}).get("proxy", {}).get("remoteUrl", ""),
         }
         for repo in repos
         if repo["type"] == "proxy"
     ]
 
+    logger.info(f"🔍 Найдено proxy-репозиториев: {len(proxy_repos)}")
+
+    return proxy_repos
+
 
 def is_domain_resolvable(url):
-    """Проверяет разрешение доменного имени"""
     try:
         domain = url.split("/")[2]
         socket.gethostbyname(domain)
@@ -69,9 +85,11 @@ def is_domain_resolvable(url):
 
 
 def check_url_status(name, url, auth=None, check_dns=False):
-    """Универсальная проверка URL"""
+    if not url:
+        return "❌ URL пуст"
+
     if check_dns and not is_domain_resolvable(url):
-        return "❌"
+        return "❌ domain is not valid"
 
     try:
         response = requests.get(url, auth=auth, timeout=10, verify=False)
@@ -86,8 +104,22 @@ def check_url_status(name, url, auth=None, check_dns=False):
         return "❌"
 
 
+def check_docker_remote(repo_name, base_url):
+    """Проверяем docker remote URL сначала без /v2, потом с /v2"""
+    status = check_url_status(f"{repo_name} (remote docker)", base_url, check_dns=True)
+    if "✅" in status:
+        return status
+    
+    # Пробуем с /v2
+    if not base_url.endswith("/v2"):
+        url_with_v2 = base_url.rstrip("/") + "/v2"
+        logger.info(f"🔄 Повторная проверка с /v2: {url_with_v2}")
+        return check_url_status(f"{repo_name} (remote docker /v2)", url_with_v2, check_dns=True)
+
+    return status
+
+
 def update_prometheus_metrics(repo, nexus_status, remote_status):
-    """Обновляет метрику Prometheus"""
     overall_status = "✅ Рабочий" if "✅" in nexus_status and "✅" in remote_status else "❌ Проблема"
 
     REPO_STATUS.labels(
@@ -109,17 +141,19 @@ def update_prometheus_metrics(repo, nexus_status, remote_status):
 
 
 def fetch_status(repo, auth):
-    """Проверяет статус Nexus и remote репозитория"""
     nexus_status = check_url_status(f"{repo['name']} (Nexus)", repo["url"], auth=auth)
-    remote_status = (
-        check_url_status(f"{repo['name']} (remote)", repo["remote"], check_dns=True)
-        if repo["remote"]
-        else "❌"
-    )
+
+    if repo["remote"]:
+        if repo["type"] == "docker":
+            remote_status = check_docker_remote(repo["name"], repo["remote"])
+        else:
+            remote_status = check_url_status(f"{repo['name']} (remote)", repo["remote"], check_dns=True)
+    else:
+        remote_status = "❌"
+
     return update_prometheus_metrics(repo, nexus_status, remote_status)
 
 
 def fetch_repositories_metrics(nexus_url, auth):
-    """Проверяет все прокси-репозитории"""
     repos = get_all_repositories(nexus_url, auth)
     return [fetch_status(repo, auth) for repo in repos]
