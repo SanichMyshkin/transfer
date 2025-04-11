@@ -47,13 +47,13 @@ def main():
         logging.info("Запуск сбора статуса репозиториев типа Proxy...")
         
         fetch_repositories_metrics(NEXUS_API_URL, auth)
-        logging.info("Запуск сбора статуса репозиториев типа Hosted и Group...")
-        fetch_static_status(NEXUS_API_URL, auth)
+        #logging.info("Запуск сбора статуса репозиториев типа Hosted и Group...")
+        #fetch_static_status(NEXUS_API_URL, auth)
 
         #if should_run_blob_metrics():
         logging.info("Запуск сбора размера репозиториев и блобов...")
-        fetch_blob_metrics(NEXUS_API_URL, auth)
-        fetch_repository_sizes(NEXUS_API_URL, DB_URL, auth)
+        #fetch_blob_metrics(NEXUS_API_URL, auth)
+        #fetch_repository_sizes(NEXUS_API_URL, DB_URL, auth)
 
         time.sleep(30)
 

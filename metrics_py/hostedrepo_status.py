@@ -14,10 +14,11 @@ logging.basicConfig(
 
 # Создание метрики для статуса репозиториев
 REPO_STATUS = Gauge(
-    "nexus_static_repo_status", 
-    "Status of hosted repositories", 
-    ["repository", "url", "type", "format"]
+    "nexus_static_repo_status",
+    "Status of hosted repositories",
+    ["repository", "url", "type", "format"],
 )
+
 
 # Функция для получения списка репозиториев через API
 def get_all_repositories(nexus_url, auth):
@@ -37,6 +38,7 @@ def get_all_repositories(nexus_url, auth):
     except Exception as e:
         logger.warning(f"❌ Ошибка при запросе репозиториев: {str(e)}")
         return []
+
 
 # Функция для проверки репозитория
 def check_repo_status(repo_url, repo_name, auth, repo_type, repo_format):
@@ -64,26 +66,23 @@ def check_repo_status(repo_url, repo_name, auth, repo_type, repo_format):
             repository=repo_name, url=check_url, type=repo_type, format=repo_format
         ).set(0)
 
+
 # Основная функция для мониторинга репозиториев
-def monitor_hosted_repos(nexus_url, auth):
+def fetch_static_status(nexus_url, auth):
     repos_data = get_all_repositories(nexus_url, auth)
-    hosted_repos = [
-        repo for repo in repos_data if repo["type"] in ["hosted", "group"]
-    ]
+    hosted_repos = [repo for repo in repos_data if repo["type"] in ["hosted", "group"]]
 
     if hosted_repos:
-        logger.info(f"📦 Проверяем репозитории: {', '.join([repo['name'] for repo in hosted_repos])}")
+        logger.info(
+            f"📦 Проверяем репозитории: {', '.join([repo['name'] for repo in hosted_repos])}"
+        )
         for repo in hosted_repos:
             check_repo_status(
                 nexus_url,
                 repo["name"],
                 auth,
                 repo["type"],
-                repo.get("format", "unknown")
+                repo.get("format", "unknown"),
             )
     else:
         logger.warning("⚠️ Не найдено репозиториев типа hosted или group.")
-
-# Основная функция запуска
-def fetch_static_status(nexus_url, auth):
-    monitor_hosted_repos(nexus_url, auth)
