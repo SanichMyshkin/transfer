@@ -52,8 +52,8 @@ def main():
 
         #if should_run_blob_metrics():
         logging.info("Запуск сбора размера репозиториев и блобов...")
-        #fetch_blob_metrics(NEXUS_API_URL, auth)
-        #fetch_repository_sizes(NEXUS_API_URL, DB_URL, auth)
+        fetch_blob_metrics(NEXUS_API_URL, auth)
+        fetch_repository_sizes(NEXUS_API_URL, DB_URL, auth)
 
         time.sleep(30)
 
