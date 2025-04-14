@@ -63,8 +63,8 @@ def get_task_status_for_blob(task_dict, repo_dict):
             return -1  # Существует, но никогда не запускалась
         if task_dict.get("lastRunResult") != "OK":
             return -2  # Завершилось с ошибкой
-        return 1  # Все в норме, отработала
-    return 0  # Таски на такой репозиторий не существует
+        return 1  # Всё в норме
+    return 0  # Нет задачи для этого репозитория
 
 
 def fetch_repository_sizes(nexus_url, db_url, auth):
@@ -81,6 +81,9 @@ def fetch_repository_sizes(nexus_url, db_url, auth):
     logging.info(f"Найдено {len(repositories)} репозиториев.")
     dict_repo_size = get_repository_sizes(db_url)
     task_list = fetch_nexus_tasks(nexus_url, "/service/rest/v1/tasks/", auth)
+
+    # Очищаем старые значения метрик
+    REPO_STORAGE.clear()
 
     for repo in repositories:
         if not isinstance(repo, dict):

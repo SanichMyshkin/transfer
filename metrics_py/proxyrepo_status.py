@@ -208,5 +208,8 @@ def fetch_status(repo, auth):
 
 
 def fetch_repositories_metrics(nexus_url, auth):
+    # Очистка всех старых меток — только из памяти Python. История сохраняется в Prometheus/VictoriaMetrics.
+    REPO_STATUS.clear()
+
     repos = get_all_repositories(nexus_url, auth)
     return [fetch_status(repo, auth) for repo in repos]

@@ -5,7 +5,6 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-
 # Метрики
 BLOB_STORAGE_USAGE = Gauge(
     "nexus_blob_storage_usage",
@@ -25,6 +24,9 @@ def fetch_blob_metrics(nexus_url, auth):
         response.raise_for_status()
         blobstores = response.json()
 
+        # Очистка всех старых лейблов — влияет только на runtime, история остаётся в TSDB (например, в VictoriaMetrics)
+        BLOB_STORAGE_USAGE.clear()
+
         for blob in blobstores:
             used_size = blob["totalSizeInBytes"]
             available_size = blob["availableSpaceInBytes"]
@@ -39,6 +41,7 @@ def fetch_blob_metrics(nexus_url, auth):
                 blob_count=blob["blobCount"],
                 blob_type=blob["type"],
             ).set(used_size)
+
             BLOB_STORAGE_USAGE.labels(
                 blob_name=blob["name"],
                 metric_type="available",
