@@ -4,8 +4,10 @@ import logging
 import urllib3
 from prometheus_client import Gauge, Info
 
+# Отключение предупреждений об SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# Метрика статуса репозитория
 REPO_STATUS = Gauge(
     "nexus_proxy_repo_status",
     "Статус репозитория в Nexus",
@@ -20,13 +22,16 @@ REPO_STATUS = Gauge(
     ],
 )
 
+# Метрика количества по типам
 REPO_COUNT = Gauge("nexus_repo_count", "Количество репозиториев по типу", ["repo_type"])
 
+# Информация о редиректах
 REDIRECT_INFO = Info(
     "nexus_repo_redirect_info",
     "Информация о редиректах для каждого репозитория",
 )
 
+# Логирование
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -66,7 +71,6 @@ def get_all_repositories(nexus_url, auth):
     ]
 
     logger.info(f"🔍 Найдено proxy-репозиториев: {len(proxy_repos)}")
-
     return proxy_repos
 
 
@@ -82,21 +86,21 @@ def is_domain_resolvable(url):
 
 def format_status(code, error_text=None):
     if code == 200:
-        return "OK"
+        return "✅"
     elif code == 401:
-        return "OK (401)"
+        return "✅ (401)"
     elif error_text:
-        return f"FAIL ({error_text})"
+        return f"❌ ({error_text})"
     else:
-        return f"FAIL ({code})"
+        return f"❌ ({code})"
 
 
 def check_url_status(name, url, auth=None, check_dns=False):
     if not url:
-        return "FAIL (empty URL)", False, ""
+        return "❌ (url is empty)", False, ""
 
     if check_dns and not is_domain_resolvable(url):
-        return "FAIL (DNS)", False, ""
+        return "❌ (domain not resolvable)", False, ""
 
     try:
         session = requests.Session()
@@ -118,7 +122,6 @@ def check_url_status(name, url, auth=None, check_dns=False):
 
         final_status = response.status_code
         final_url = response.url
-
         logger.info(f"🔚 {name} финальный URL: {final_url} (статус: {final_status})")
 
         return format_status(final_status), redirected, redirect_chain
@@ -132,7 +135,7 @@ def check_docker_remote(repo_name, base_url):
     status, redirected, redirect_info = check_url_status(
         f"{repo_name} (remote docker)", base_url, check_dns=True
     )
-    if status.startswith("OK"):
+    if status.startswith("✅"):
         return status, redirected, redirect_info
 
     if not base_url.endswith("/v2"):
@@ -146,7 +149,7 @@ def check_docker_remote(repo_name, base_url):
 
 
 def update_prometheus_metrics(repo, nexus_status, remote_status, redirected, redirect_info):
-    overall_status = "OK" if nexus_status.startswith("OK") and remote_status.startswith("OK") else "FAIL"
+    healthy = nexus_status.startswith("✅") and remote_status.startswith("✅")
 
     REPO_STATUS.labels(
         repo_name=repo["name"],
@@ -156,17 +159,18 @@ def update_prometheus_metrics(repo, nexus_status, remote_status, redirected, red
         nexus_status=nexus_status,
         remote_status=remote_status,
         redirected=str(redirected).lower(),
-    ).set(1 if overall_status == "OK" else 0)
+    ).set(1 if healthy else 0)
 
     if redirect_info:
         REDIRECT_INFO.info({repo["name"]: redirect_info})
 
-    logger.info(f"📦 Статус репозитория {repo['name']}: {overall_status}")
+    status_icon = "✅" if healthy else "❌"
+    logger.info(f"📦 Статус репозитория {repo['name']}: {status_icon}")
     return {
         "repo": repo["name"],
         "nexus": nexus_status,
         "remote": remote_status,
-        "status": overall_status,
+        "status": status_icon,
         "redirected": redirected,
         "redirect_chain": redirect_info,
     }
@@ -187,7 +191,7 @@ def fetch_status(repo, auth):
                 f"{repo['name']} (remote)", repo["remote"], check_dns=True
             )
     else:
-        remote_status, remote_redirected, remote_redirect_info = "FAIL (no remote URL)", False, ""
+        remote_status, remote_redirected, remote_redirect_info = "❌ (no remote URL)", False, ""
 
     was_redirected = nexus_redirected or remote_redirected
     redirect_chain_combined = " | ".join(
