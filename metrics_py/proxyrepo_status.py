@@ -4,10 +4,8 @@ import logging
 import urllib3
 from prometheus_client import Gauge, Info
 
-# Отключение предупреждений об SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Прометеус метрики
 REPO_STATUS = Gauge(
     "nexus_proxy_repo_status",
     "Статус репозитория в Nexus",
@@ -29,19 +27,13 @@ REDIRECT_INFO = Info(
     "Информация о редиректах для каждого репозитория",
 )
 
-# Логирование
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 
-def normalize_status(status: str) -> str:
-    return "OK" if status == "OK" else "FAIL"
-
-
 def get_all_repositories(nexus_url, auth):
-    """Получает список репозиториев из Nexus"""
     endpoint = f"{nexus_url}/service/rest/v1/repositories"
 
     try:
@@ -53,7 +45,6 @@ def get_all_repositories(nexus_url, auth):
 
     repos = response.json()
 
-    # Подсчёт репозиториев по типам
     type_counts = {}
     for repo in repos:
         repo_type = repo.get("type", "unknown")
@@ -89,12 +80,23 @@ def is_domain_resolvable(url):
         return False
 
 
+def format_status(code, error_text=None):
+    if code == 200:
+        return "OK"
+    elif code == 401:
+        return "OK (401)"
+    elif error_text:
+        return f"FAIL ({error_text})"
+    else:
+        return f"FAIL ({code})"
+
+
 def check_url_status(name, url, auth=None, check_dns=False):
     if not url:
-        return "FAIL", False, ""
+        return "FAIL (empty URL)", False, ""
 
     if check_dns and not is_domain_resolvable(url):
-        return "FAIL", False, ""
+        return "FAIL (DNS)", False, ""
 
     try:
         session = requests.Session()
@@ -119,22 +121,18 @@ def check_url_status(name, url, auth=None, check_dns=False):
 
         logger.info(f"🔚 {name} финальный URL: {final_url} (статус: {final_status})")
 
-        if final_status in (200, 401):
-            return "OK", redirected, redirect_chain
-        else:
-            return "FAIL", redirected, redirect_chain
+        return format_status(final_status), redirected, redirect_chain
 
     except requests.RequestException as e:
         logger.warning(f"❌ Ошибка доступа к {name}: {e}")
-        return "FAIL", False, ""
+        return format_status(None, str(e)), False, ""
 
 
 def check_docker_remote(repo_name, base_url):
-    """Проверяем docker remote URL сначала без /v2, потом с /v2"""
     status, redirected, redirect_info = check_url_status(
         f"{repo_name} (remote docker)", base_url, check_dns=True
     )
-    if status == "OK":
+    if status.startswith("OK"):
         return status, redirected, redirect_info
 
     if not base_url.endswith("/v2"):
@@ -144,11 +142,11 @@ def check_docker_remote(repo_name, base_url):
             f"{repo_name} (remote docker /v2)", url_with_v2, check_dns=True
         )
 
-    return "FAIL", redirected, redirect_info
+    return status, redirected, redirect_info
 
 
 def update_prometheus_metrics(repo, nexus_status, remote_status, redirected, redirect_info):
-    overall_status = "OK" if nexus_status == "OK" and remote_status == "OK" else "FAIL"
+    overall_status = "OK" if nexus_status.startswith("OK") and remote_status.startswith("OK") else "FAIL"
 
     REPO_STATUS.labels(
         repo_name=repo["name"],
@@ -189,9 +187,8 @@ def fetch_status(repo, auth):
                 f"{repo['name']} (remote)", repo["remote"], check_dns=True
             )
     else:
-        remote_status, remote_redirected, remote_redirect_info = "FAIL", False, ""
+        remote_status, remote_redirected, remote_redirect_info = "FAIL (no remote URL)", False, ""
 
-    # Считаем редирект, если он был хотя бы в одном из URL
     was_redirected = nexus_redirected or remote_redirected
     redirect_chain_combined = " | ".join(
         filter(None, [nexus_redirect_info, remote_redirect_info])
@@ -199,8 +196,8 @@ def fetch_status(repo, auth):
 
     return update_prometheus_metrics(
         repo,
-        normalize_status(nexus_status),
-        normalize_status(remote_status),
+        nexus_status,
+        remote_status,
         was_redirected,
         redirect_chain_combined,
     )
