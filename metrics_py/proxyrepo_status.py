@@ -2,7 +2,7 @@ import requests
 import socket
 import logging
 import urllib3
-from prometheus_client import Gauge
+from prometheus_client import Gauge, Info
 
 # Отключение предупреждений об SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -18,16 +18,26 @@ REPO_STATUS = Gauge(
         "remote_url",
         "nexus_status",
         "remote_status",
+        "redirected",
     ],
 )
 
 REPO_COUNT = Gauge("nexus_repo_count", "Количество репозиториев по типу", ["repo_type"])
+
+REDIRECT_INFO = Info(
+    "nexus_repo_redirect_info",
+    "Информация о редиректах для каждого репозитория",
+)
 
 # Логирование
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+def normalize_status(status: str) -> str:
+    return "OK" if status == "OK" else "FAIL"
 
 
 def get_all_repositories(nexus_url, auth):
@@ -81,48 +91,52 @@ def is_domain_resolvable(url):
 
 def check_url_status(name, url, auth=None, check_dns=False):
     if not url:
-        return "❌ URL пуст"
+        return "FAIL", False, ""
 
     if check_dns and not is_domain_resolvable(url):
-        return "❌ domain is not valid"
+        return "FAIL", False, ""
 
     try:
         session = requests.Session()
         response = session.get(
-            url, auth=auth, timeout=10, verify=False, allow_redirects=True
+            url, auth=auth, timeout=15, verify=False, allow_redirects=True
         )
 
-        # Лог редиректов
-        history = response.history
-        if history:
+        redirected = len(response.history) > 0
+        redirect_chain = ""
+
+        if redirected:
             logger.info(f"🔁 {name} редиректы:")
-            for resp in history:
-                logger.info(f"➡️ {resp.status_code} → {resp.headers.get('Location')}")
+            chain = []
+            for resp in response.history:
+                loc = resp.headers.get("Location", "<unknown>")
+                logger.info(f"➡️ {resp.status_code} → {loc}")
+                chain.append(f"{resp.status_code} → {loc}")
+            redirect_chain = " > ".join(chain)
 
         final_status = response.status_code
         final_url = response.url
 
+        logger.info(f"🔚 {name} финальный URL: {final_url} (статус: {final_status})")
+
         if final_status in (200, 401):
-            logger.info(
-                f"✅ {name} доступен: {final_status}, финальный URL: {final_url}"
-            )
-            return "✅"
+            return "OK", redirected, redirect_chain
         else:
-            logger.warning(f"⚠️ {name} финальный статус: {final_status}")
-            return f"❌ ({final_status})"
+            return "FAIL", redirected, redirect_chain
 
     except requests.RequestException as e:
         logger.warning(f"❌ Ошибка доступа к {name}: {e}")
-        return f"❌ ({e})"
+        return "FAIL", False, ""
 
 
 def check_docker_remote(repo_name, base_url):
     """Проверяем docker remote URL сначала без /v2, потом с /v2"""
-    status = check_url_status(f"{repo_name} (remote docker)", base_url, check_dns=True)
-    if "✅" in status:
-        return status
+    status, redirected, redirect_info = check_url_status(
+        f"{repo_name} (remote docker)", base_url, check_dns=True
+    )
+    if status == "OK":
+        return status, redirected, redirect_info
 
-    # Пробуем с /v2
     if not base_url.endswith("/v2"):
         url_with_v2 = base_url.rstrip("/") + "/v2"
         logger.info(f"🔄 Повторная проверка с /v2: {url_with_v2}")
@@ -130,15 +144,11 @@ def check_docker_remote(repo_name, base_url):
             f"{repo_name} (remote docker /v2)", url_with_v2, check_dns=True
         )
 
-    return status
+    return "FAIL", redirected, redirect_info
 
 
-def update_prometheus_metrics(repo, nexus_status, remote_status):
-    overall_status = (
-        "✅ Рабочий"
-        if "✅" in nexus_status and "✅" in remote_status
-        else "❌ Проблема"
-    )
+def update_prometheus_metrics(repo, nexus_status, remote_status, redirected, redirect_info):
+    overall_status = "OK" if nexus_status == "OK" and remote_status == "OK" else "FAIL"
 
     REPO_STATUS.labels(
         repo_name=repo["name"],
@@ -147,31 +157,53 @@ def update_prometheus_metrics(repo, nexus_status, remote_status):
         remote_url=repo["remote"] or "",
         nexus_status=nexus_status,
         remote_status=remote_status,
-    ).set(1 if overall_status == "✅ Рабочий" else 0)
+        redirected=str(redirected).lower(),
+    ).set(1 if overall_status == "OK" else 0)
 
-    logger.info(f"Статус репозитория {repo['name']}: {overall_status}")
+    if redirect_info:
+        REDIRECT_INFO.info({repo["name"]: redirect_info})
+
+    logger.info(f"📦 Статус репозитория {repo['name']}: {overall_status}")
     return {
         "repo": repo["name"],
         "nexus": nexus_status,
         "remote": remote_status,
         "status": overall_status,
+        "redirected": redirected,
+        "redirect_chain": redirect_info,
     }
 
 
 def fetch_status(repo, auth):
-    nexus_status = check_url_status(f"{repo['name']} (Nexus)", repo["url"], auth=auth)
+    nexus_status, nexus_redirected, nexus_redirect_info = check_url_status(
+        f"{repo['name']} (Nexus)", repo["url"], auth=auth
+    )
 
     if repo["remote"]:
         if repo["type"] == "docker":
-            remote_status = check_docker_remote(repo["name"], repo["remote"])
+            remote_status, remote_redirected, remote_redirect_info = check_docker_remote(
+                repo["name"], repo["remote"]
+            )
         else:
-            remote_status = check_url_status(
+            remote_status, remote_redirected, remote_redirect_info = check_url_status(
                 f"{repo['name']} (remote)", repo["remote"], check_dns=True
             )
     else:
-        remote_status = "❌"
+        remote_status, remote_redirected, remote_redirect_info = "FAIL", False, ""
 
-    return update_prometheus_metrics(repo, nexus_status, remote_status)
+    # Считаем редирект, если он был хотя бы в одном из URL
+    was_redirected = nexus_redirected or remote_redirected
+    redirect_chain_combined = " | ".join(
+        filter(None, [nexus_redirect_info, remote_redirect_info])
+    )
+
+    return update_prometheus_metrics(
+        repo,
+        normalize_status(nexus_status),
+        normalize_status(remote_status),
+        was_redirected,
+        redirect_chain_combined,
+    )
 
 
 def fetch_repositories_metrics(nexus_url, auth):

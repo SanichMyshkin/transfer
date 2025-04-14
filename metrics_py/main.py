@@ -5,7 +5,7 @@ from datetime import datetime
 from prometheus_client import start_http_server
 from dotenv import load_dotenv
 from proxyrepo_status import fetch_repositories_metrics
-from hostedrepo_status import fetch_static_status
+#from hostedrepo_status import fetch_static_status
 from repo_size import fetch_repository_sizes
 from blobs_size import fetch_blob_metrics
 
