@@ -87,18 +87,33 @@ def check_url_status(name, url, auth=None, check_dns=False):
         return "❌ domain is not valid"
 
     try:
-        response = requests.get(url, auth=auth, timeout=10, verify=False)
-        if response.status_code in (200, 401):
-            logger.info(f"✅ {name} доступен: {response.status_code}")
-            return (
-                f"✅ ({response.status_code})" if response.status_code != 200 else "✅"
+        session = requests.Session()
+        response = session.get(
+            url, auth=auth, timeout=10, verify=False, allow_redirects=True
+        )
+
+        # Лог редиректов
+        history = response.history
+        if history:
+            logger.info(f"🔁 {name} редиректы:")
+            for resp in history:
+                logger.info(f"➡️ {resp.status_code} → {resp.headers.get('Location')}")
+
+        final_status = response.status_code
+        final_url = response.url
+
+        if final_status in (200, 401):
+            logger.info(
+                f"✅ {name} доступен: {final_status}, финальный URL: {final_url}"
             )
+            return "✅"
         else:
-            logger.warning(f"⚠️ {name} вернул {response.status_code}")
-            return f"❌ ({response.status_code})"
+            logger.warning(f"⚠️ {name} финальный статус: {final_status}")
+            return f"❌ ({final_status})"
+
     except requests.RequestException as e:
         logger.warning(f"❌ Ошибка доступа к {name}: {e}")
-        return "❌"
+        return f"❌ ({e})"
 
 
 def check_docker_remote(repo_name, base_url):
