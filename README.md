@@ -47,7 +47,7 @@ java -Xmx16G -Xms16G -XX:+UseG1GC -XX:MaxDirectMemorySize=28672M -jar nexus-db-m
 
 > Для слабых серверов/ПК
 ```bash 
-java -Xmx16G -Xms16G -XX:+UseG1GC -XX:MaxDirectMemorySize=28672M -jar nexus-db-migrator-*.jar --migration_type=h2
+java -Xmx4G -Xms4G -XX:+UseG1GC -XX:MaxDirectMemorySize=16672M -jar nexus-db-migrator-*.jar --migration_type=h2
 ```
 
 Если все сделано верно, то будет следующий вывод:
