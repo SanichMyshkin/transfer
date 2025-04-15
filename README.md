@@ -45,6 +45,11 @@ __Так же на момент миграции Java должна бы быть
 java -Xmx16G -Xms16G -XX:+UseG1GC -XX:MaxDirectMemorySize=28672M -jar nexus-db-migrator-*.jar --migration_type=h2
 ```
 
+> Для слабых серверов/ПК
+```bash 
+java -Xmx16G -Xms16G -XX:+UseG1GC -XX:MaxDirectMemorySize=28672M -jar nexus-db-migrator-*.jar --migration_type=h2
+```
+
 Если все сделано верно, то будет следующий вывод:
 
 ```log
