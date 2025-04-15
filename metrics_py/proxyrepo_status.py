@@ -56,8 +56,10 @@ def safe_get(url, auth=None, timeout=15, verify=False, max_retries=3):
             return response, None
         except ConnectionError as e:
             last_error = e
-            wait = 2 ** attempt
-            logger.warning(f"⚠️ [{url}] Попытка {attempt + 1} не удалась (ConnectionError), жду {wait}s...")
+            wait = 2**attempt
+            logger.warning(
+                f"⚠️ [{url}] Попытка {attempt + 1} не удалась (ConnectionError), жду {wait}s..."
+            )
             time.sleep(wait)
         except RequestException as e:
             last_error = e
@@ -144,7 +146,9 @@ def check_url_status(name, url, auth=None, check_dns=False):
             chain.append(f"{resp.status_code} → {loc}")
         redirect_chain = " > ".join(chain)
 
-    logger.info(f"🔚 {name} финальный URL: {response.url} (статус: {response.status_code})")
+    logger.info(
+        f"🔚 {name} финальный URL: {response.url} (статус: {response.status_code})"
+    )
     return format_status(response.status_code), redirected, redirect_chain
 
 
@@ -157,13 +161,17 @@ def check_docker_remote(repo_name, base_url):
 
     if not base_url.endswith("/v2"):
         return check_url_status(
-            f"{repo_name} (remote docker /v2)", base_url.rstrip("/") + "/v2", check_dns=True
+            f"{repo_name} (remote docker /v2)",
+            base_url.rstrip("/") + "/v2",
+            check_dns=True,
         )
 
     return status, redirected, redirect_info
 
 
-def update_prometheus_metrics(repo, nexus_status, remote_status, redirected, redirect_info):
+def update_prometheus_metrics(
+    repo, nexus_status, remote_status, redirected, redirect_info
+):
     healthy = nexus_status.startswith("✅") and remote_status.startswith("✅")
 
     REPO_STATUS.labels(
@@ -197,13 +205,19 @@ def fetch_status(repo, auth):
 
     if repo["remote"]:
         if repo["type"] == "docker":
-            remote_status, remote_redirected, remote_redirect_info = check_docker_remote(repo["name"], repo["remote"])
+            remote_status, remote_redirected, remote_redirect_info = (
+                check_docker_remote(repo["name"], repo["remote"])
+            )
         else:
             remote_status, remote_redirected, remote_redirect_info = check_url_status(
                 f"{repo['name']} (remote)", repo["remote"], check_dns=True
             )
     else:
-        remote_status, remote_redirected, remote_redirect_info = "❌ (no remote URL)", False, ""
+        remote_status, remote_redirected, remote_redirect_info = (
+            "❌ (no remote URL)",
+            False,
+            "",
+        )
 
     return update_prometheus_metrics(
         repo,
