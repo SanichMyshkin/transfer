@@ -55,7 +55,7 @@ def check_repo_status(repo_url, repo_name, auth, repo_type, repo_format):
             ).set(1)
         else:
             logger.warning(
-                f"⚠️ Ошибка при проверке репозитория {repo_name}, статус: {response.status_code}"
+                f"⚠️ Репозиторий {repo_name} недоступен. Статус: {response.status_code}"
             )
             REPO_STATUS.labels(
                 repository=repo_name, url=check_url, type=repo_type, format=repo_format
@@ -69,13 +69,13 @@ def check_repo_status(repo_url, repo_name, auth, repo_type, repo_format):
 
 # Основная функция для мониторинга репозиториев
 def fetch_static_status(nexus_url, auth):
+    """Проверяет доступность hosted и group репозиториев"""
     repos_data = get_all_repositories(nexus_url, auth)
     hosted_repos = [repo for repo in repos_data if repo["type"] in ["hosted", "group"]]
 
     if hosted_repos:
-        logger.info(
-            f"📦 Проверяем репозитории: {', '.join([repo['name'] for repo in hosted_repos])}"
-        )
+        repo_names = ", ".join([repo["name"] for repo in hosted_repos])
+        logger.info(f"📦 Проверяем репозитории: {repo_names}")
         for repo in hosted_repos:
             check_repo_status(
                 nexus_url,

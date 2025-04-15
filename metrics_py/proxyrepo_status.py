@@ -2,7 +2,9 @@ import requests
 import socket
 import logging
 import urllib3
+import time
 from prometheus_client import Gauge, Info
+from requests.exceptions import RequestException, ConnectionError
 
 # Отключение предупреждений об SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -27,8 +29,7 @@ REPO_COUNT = Gauge("nexus_repo_count", "Количество репозитор�
 
 # Информация о редиректах
 REDIRECT_INFO = Info(
-    "nexus_repo_redirect_info",
-    "Информация о редиректах для каждого репозитория",
+    "nexus_repo_redirect_info", "Информация о редиректах для каждого репозитория"
 )
 
 # Логирование
@@ -37,15 +38,42 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+}
+
+
+def safe_get(url, auth=None, timeout=15, verify=False, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(
+                url,
+                auth=auth,
+                headers=HEADERS,
+                timeout=timeout,
+                verify=verify,
+                allow_redirects=True,
+            )
+            return response
+        except ConnectionError as e:
+            wait = 2**attempt
+            logger.warning(
+                f"⚠️ [{url}] Попытка {attempt + 1} не удалась (ConnectionError), жду {wait}s..."
+            )
+            time.sleep(wait)
+        except RequestException as e:
+            logger.warning(f"❌ Ошибка запроса к {url}: {e}")
+            break
+    return None
+
 
 def get_all_repositories(nexus_url, auth):
     endpoint = f"{nexus_url}/service/rest/v1/repositories"
+    response = safe_get(endpoint, auth=auth)
 
-    try:
-        response = requests.get(endpoint, auth=auth, timeout=10, verify=False)
-        response.raise_for_status()
-    except requests.RequestException as e:
-        logger.error(f"❌ Ошибка при запросе Nexus: {e}")
+    if response is None or response.status_code != 200:
+        logger.error("❌ Не удалось получить список репозиториев")
         return []
 
     repos = response.json()
@@ -102,33 +130,27 @@ def check_url_status(name, url, auth=None, check_dns=False):
     if check_dns and not is_domain_resolvable(url):
         return "❌ (domain not resolvable)", False, ""
 
-    try:
-        session = requests.Session()
-        response = session.get(
-            url, auth=auth, timeout=15, verify=False, allow_redirects=True
-        )
+    response = safe_get(url, auth=auth)
+    if response is None:
+        return "❌ (request failed)", False, ""
 
-        redirected = len(response.history) > 0
-        redirect_chain = ""
+    redirected = len(response.history) > 0
+    redirect_chain = ""
 
-        if redirected:
-            logger.info(f"🔁 {name} редиректы:")
-            chain = []
-            for resp in response.history:
-                loc = resp.headers.get("Location", "<unknown>")
-                logger.info(f"➡️ {resp.status_code} → {loc}")
-                chain.append(f"{resp.status_code} → {loc}")
-            redirect_chain = " > ".join(chain)
+    if redirected:
+        logger.info(f"🔁 {name} редиректы:")
+        chain = []
+        for resp in response.history:
+            loc = resp.headers.get("Location", "<unknown>")
+            logger.info(f"➡️ {resp.status_code} → {loc}")
+            chain.append(f"{resp.status_code} → {loc}")
+        redirect_chain = " > ".join(chain)
 
-        final_status = response.status_code
-        final_url = response.url
-        logger.info(f"🔚 {name} финальный URL: {final_url} (статус: {final_status})")
+    final_status = response.status_code
+    final_url = response.url
+    logger.info(f"🔚 {name} финальный URL: {final_url} (статус: {final_status})")
 
-        return format_status(final_status), redirected, redirect_chain
-
-    except requests.RequestException as e:
-        logger.warning(f"❌ Ошибка доступа к {name}: {e}")
-        return format_status(None, str(e)), False, ""
+    return format_status(final_status), redirected, redirect_chain
 
 
 def check_docker_remote(repo_name, base_url):
@@ -148,7 +170,9 @@ def check_docker_remote(repo_name, base_url):
     return status, redirected, redirect_info
 
 
-def update_prometheus_metrics(repo, nexus_status, remote_status, redirected, redirect_info):
+def update_prometheus_metrics(
+    repo, nexus_status, remote_status, redirected, redirect_info
+):
     healthy = nexus_status.startswith("✅") and remote_status.startswith("✅")
 
     REPO_STATUS.labels(
@@ -183,15 +207,19 @@ def fetch_status(repo, auth):
 
     if repo["remote"]:
         if repo["type"] == "docker":
-            remote_status, remote_redirected, remote_redirect_info = check_docker_remote(
-                repo["name"], repo["remote"]
+            remote_status, remote_redirected, remote_redirect_info = (
+                check_docker_remote(repo["name"], repo["remote"])
             )
         else:
             remote_status, remote_redirected, remote_redirect_info = check_url_status(
                 f"{repo['name']} (remote)", repo["remote"], check_dns=True
             )
     else:
-        remote_status, remote_redirected, remote_redirect_info = "❌ (no remote URL)", False, ""
+        remote_status, remote_redirected, remote_redirect_info = (
+            "❌ (no remote URL)",
+            False,
+            "",
+        )
 
     was_redirected = nexus_redirected or remote_redirected
     redirect_chain_combined = " | ".join(
@@ -199,17 +227,11 @@ def fetch_status(repo, auth):
     )
 
     return update_prometheus_metrics(
-        repo,
-        nexus_status,
-        remote_status,
-        was_redirected,
-        redirect_chain_combined,
+        repo, nexus_status, remote_status, was_redirected, redirect_chain_combined
     )
 
 
 def fetch_repositories_metrics(nexus_url, auth):
-    # Очистка всех старых меток — только из памяти Python. История сохраняется в Prometheus/VictoriaMetrics.
     REPO_STATUS.clear()
-
     repos = get_all_repositories(nexus_url, auth)
     return [fetch_status(repo, auth) for repo in repos]

@@ -5,7 +5,8 @@ from datetime import datetime
 from prometheus_client import start_http_server
 from dotenv import load_dotenv
 from proxyrepo_status import fetch_repositories_metrics
-#from hostedrepo_status import fetch_static_status
+
+# from hostedrepo_status import fetch_static_status
 from repo_size import fetch_repository_sizes
 from blobs_size import fetch_blob_metrics
 
@@ -45,12 +46,12 @@ def main():
 
     while True:
         logging.info("Запуск сбора статуса репозиториев типа Proxy...")
-        
-        fetch_repositories_metrics(NEXUS_API_URL, auth)
-        #logging.info("Запуск сбора статуса репозиториев типа Hosted и Group...")
-        #fetch_static_status(NEXUS_API_URL, auth)
 
-        #if should_run_blob_metrics():
+        fetch_repositories_metrics(NEXUS_API_URL, auth)
+        # logging.info("Запуск сбора статуса репозиториев типа Hosted и Group...")
+        # fetch_static_status(NEXUS_API_URL, auth)
+
+        # if should_run_blob_metrics():
         logging.info("Запуск сбора размера репозиториев и блобов...")
         fetch_blob_metrics(NEXUS_API_URL, auth)
         fetch_repository_sizes(NEXUS_API_URL, DB_URL, auth)
