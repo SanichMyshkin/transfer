@@ -11,7 +11,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# Метрика размера репозиториев + статусы задач
+# Метрика размера репозиториев
 REPO_STORAGE = Gauge(
     "nexus_repo_size",
     "Total size of Nexus repositories in bytes",
@@ -23,6 +23,22 @@ REPO_STORAGE = Gauge(
         "repo_cleanup",
         "delete_temp_status",
         "compact_status",
+    ],
+)
+
+# Метрика с полной инфой о задачах
+TASK_INFO = Gauge(
+    "nexus_task_info",
+    "Raw info about all Nexus tasks",
+    [
+        "id",
+        "name",
+        "type",
+        "message",
+        "current_state",
+        "last_run_result",
+        "next_run",
+        "last_run",
     ],
 )
 
@@ -44,14 +60,11 @@ def fetch_nexus_data(nexus_url, endpoint, auth):
 
 
 def extract_blob_name_from_task(task):
-    """Извлекает имя блоба из message."""
     message = task.get("message")
     if not message:
         return None
-
     message = message.lower()
     if "blob store" in message:
-        # Удаляем всё после "blob store", берём последнее слово перед ним
         before = message.split("blob store")[0].strip().split()
         if before:
             return before[-1]
@@ -59,7 +72,6 @@ def extract_blob_name_from_task(task):
 
 
 def fetch_nexus_tasks(nexus_url, endpoint, auth):
-    """Получает задачи из Nexus и добавляет поле blob_name."""
     data = fetch_nexus_data(nexus_url, endpoint, auth)
     if not data:
         return []
@@ -69,27 +81,37 @@ def fetch_nexus_tasks(nexus_url, endpoint, auth):
     for task in tasks:
         if task.get("type") in ["blobstore.delete-temp-files", "blobstore.compact"]:
             task["blob_name"] = extract_blob_name_from_task(task)
-            result.append(task)
+        result.append(task)
     return result
 
 
 def get_task_status_for_blob(tasks, blob_name, task_type):
-    """Определяет статус задач типа task_type для конкретного блоба."""
-    status = 0  # По умолчанию — задачи нет
-
+    status = 0
     for task in tasks:
         if task.get("type") != task_type:
             continue
         if task.get("blob_name") != blob_name:
             continue
-
         last_result = task.get("lastRunResult")
-
         if last_result != "OK":
-            return -1  # Ошибка
-
-        status = 1  # Успешный запуск, если не было ошибок
+            return -1
+        status = 1
     return status
+
+
+def update_task_info_metrics(tasks):
+    TASK_INFO.clear()
+    for task in tasks:
+        TASK_INFO.labels(
+            id=task.get("id", "N/A"),
+            name=str(task.get("name", "N/A")),
+            type=task.get("type", "N/A"),
+            message=str(task.get("message", "N/A")),
+            current_state=task.get("currentState", "N/A"),
+            last_run_result=task.get("lastRunResult", "N/A"),
+            next_run=task.get("nextRun", "null") or "null",
+            last_run=task.get("lastRun", "null") or "null",
+        ).set(1)
 
 
 def fetch_repository_sizes(nexus_url, db_url, auth):
@@ -104,8 +126,9 @@ def fetch_repository_sizes(nexus_url, db_url, auth):
 
     logging.info(f"Найдено {len(repositories)} репозиториев.")
     dict_repo_size = get_repository_sizes(db_url)
-    task_list = fetch_nexus_tasks(nexus_url, "/service/rest/v1/tasks/", auth)
+    task_list = fetch_nexus_tasks(nexus_url, "/service/rest/v1/tasks", auth)
 
+    update_task_info_metrics(task_list)
     REPO_STORAGE.clear()
 
     for repo in repositories:
@@ -124,7 +147,6 @@ def fetch_repository_sizes(nexus_url, db_url, auth):
         repo_blob_name = storage_info.get("blobStoreName", "N/A")
         repo_size = dict_repo_size.get(repo_name, 0)
 
-        # Получаем статусы задач
         delete_temp_status = get_task_status_for_blob(
             task_list, repo_blob_name, "blobstore.delete-temp-files"
         )
@@ -132,7 +154,6 @@ def fetch_repository_sizes(nexus_url, db_url, auth):
             task_list, repo_blob_name, "blobstore.compact"
         )
 
-        # Очистка по политике (если есть)
         repo_cleanup = repo.get("cleanup")
         if isinstance(repo_cleanup, dict):
             repo_cleanup = repo_cleanup.get("policyNames", "N/A")
