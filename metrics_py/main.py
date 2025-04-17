@@ -38,14 +38,14 @@ def main():
     logging.info("Метрики VictoriaMetrics доступны на :8000")
 
     while True:
-        logging.info("Запуск сбора статуса репозиториев типа Proxy...")
-        fetch_repositories_metrics(NEXUS_API_URL, auth)
+        #logging.info("Запуск сбора статуса репозиториев типа Proxy...")
+        #fetch_repositories_metrics(NEXUS_API_URL, auth)
         
-        logging.info("Запуск сбора размера репозиториев и блобов...")
-        fetch_blob_metrics(NEXUS_API_URL, auth)
+        #logging.info("Запуск сбора размера репозиториев и блобов...")
+        #fetch_blob_metrics(NEXUS_API_URL, auth)
         fetch_repository_sizes(NEXUS_API_URL, DB_URL, auth)
 
-        time.sleep(900)
+        time.sleep(30)
 
 
 if __name__ == "__main__":

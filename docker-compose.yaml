@@ -70,7 +70,7 @@ services:
 
   # Nexus Repository Manager
   nexus:
-    image: sonatype/nexus3:3.77.0
+    image: sonatype/nexus3:3.78.2
     restart: unless-stopped
     container_name: nexus
     volumes:
