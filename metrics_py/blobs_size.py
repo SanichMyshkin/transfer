@@ -5,6 +5,9 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# Настройка логирования
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
 # Метрики
 BLOB_STORAGE_USAGE = Gauge(
     "nexus_blob_storage_usage",
@@ -19,7 +22,7 @@ def fetch_blob_metrics(nexus_url, auth):
 
     try:
         response = requests.get(
-            f"{nexus_url}/service/rest/v1/blobstores", auth=auth, verify=False
+            f"{nexus_url}/service/rest/v1/blobstores", auth=auth, verify=False, timeout=10
         )
         response.raise_for_status()
         blobstores = response.json()
@@ -32,7 +35,7 @@ def fetch_blob_metrics(nexus_url, auth):
             available_size = blob["availableSpaceInBytes"]
 
             logging.info(
-                f"Blobstore '{blob['name']}': used={used_size}, available={available_size}"
+                f"Blobstore '{blob['name']}': used={used_size}, available={available_size}, type={blob['type']}, count={blob['blobCount']}"
             )
 
             BLOB_STORAGE_USAGE.labels(
@@ -49,5 +52,19 @@ def fetch_blob_metrics(nexus_url, auth):
                 blob_type=blob["type"],
             ).set(available_size)
 
+    except requests.exceptions.ConnectionError:
+        logging.error("❌ Не удалось подключиться к API Nexus. Проверьте доступность сервера.")
+    except requests.exceptions.Timeout:
+        logging.error("⏳ Время ожидания подключения к API Nexus истекло.")
+    except requests.exceptions.HTTPError as e:
+        logging.error(f"⚠️ Ошибка HTTP при запросе к API Nexus: {e.response.status_code} - {e.response.reason}")
     except requests.exceptions.RequestException as e:
-        logging.error(f"Ошибка при получении данных о blobstore: {e}")
+        logging.error(f"❗ Произошла ошибка при запросе к API Nexus: {e}")
+
+
+# Пример вызова функции
+if __name__ == "__main__":
+    NEXUS_URL = "https://your-nexus-instance.com"
+    AUTH = ("username", "password")  # Укажи реальные креды
+
+    fetch_blob_metrics(NEXUS_URL, AUTH)
