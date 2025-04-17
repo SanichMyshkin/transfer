@@ -73,9 +73,18 @@ def get_all_repositories(nexus_url, auth):
 
     try:
         response = requests.get(endpoint, auth=auth, timeout=10, verify=False)
+        if response.status_code == 401:
+            logger.error(f"❌ Доступ запрещён (401 Unauthorized) к {endpoint}")
+            return []
+        elif response.status_code == 403:
+            logger.error(f"❌ Доступ запрещён (403 Forbidden) к {endpoint}")
+            return []
         response.raise_for_status()
+    except requests.ConnectionError as e:
+        logger.error(f"❌ Невозможно подключиться к Nexus API: {e}")
+        return []
     except requests.RequestException as e:
-        logger.error(f"❌ Ошибка при запросе Nexus: {e}")
+        logger.error(f"❌ Ошибка при запросе Nexus API: {e}")
         return []
 
     repos = response.json()
@@ -99,6 +108,7 @@ def get_all_repositories(nexus_url, auth):
         for r in repos
         if r["type"] == "proxy"
     ]
+
 
 
 def is_domain_resolvable(url):

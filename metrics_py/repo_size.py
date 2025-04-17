@@ -47,15 +47,23 @@ def fetch_nexus_data(nexus_url, endpoint, auth):
     url = f"{nexus_url}{endpoint}"
     try:
         response = requests.get(url, auth=auth, verify=False, timeout=15)
-        if response.status_code == 200:
-            return response.json()
-        else:
+        if response.status_code == 401:
+            logging.error(f"❌ Нет доступа (401 Unauthorized) к {url}")
+            return None
+        elif response.status_code == 403:
+            logging.error(f"❌ Доступ запрещён (403 Forbidden) к {url}")
+            return None
+        elif response.status_code != 200:
             logging.warning(
-                f"Ошибка при запросе {endpoint}: {response.status_code} - {response.text}"
+                f"⚠️ Ошибка при запросе {url}: {response.status_code} - {response.text}"
             )
             return None
+        return response.json()
+    except requests.exceptions.ConnectionError as e:
+        logging.error(f"❌ Не удалось подключиться к Nexus: {e}")
+        return None
     except requests.exceptions.RequestException as e:
-        logging.error(f"Ошибка при вызове {endpoint}: {e}")
+        logging.error(f"❌ Ошибка при вызове {url}: {e}")
         return None
 
 
@@ -102,16 +110,26 @@ def get_task_status_for_blob(tasks, blob_name, task_type):
 def update_task_info_metrics(tasks):
     TASK_INFO.clear()
     for task in tasks:
+        last_run_result = task.get("lastRunResult", "N/A")
+
+        # Логика для last_run_result
+        if last_run_result == "OK":
+            value = 0
+        elif last_run_result is None:
+            value = -1
+        else:
+            value = 1
+
         TASK_INFO.labels(
             id=task.get("id", "N/A"),
             name=str(task.get("name", "N/A")),
             type=task.get("type", "N/A"),
             message=str(task.get("message", "N/A")),
             current_state=task.get("currentState", "N/A"),
-            last_run_result=task.get("lastRunResult", "N/A"),
+            last_run_result=last_run_result,
             next_run=task.get("nextRun", "null") or "null",
             last_run=task.get("lastRun", "null") or "null",
-        ).set(1)
+        ).set(value)
 
 
 def fetch_repository_sizes(nexus_url, db_url, auth):
@@ -126,8 +144,13 @@ def fetch_repository_sizes(nexus_url, db_url, auth):
 
     logging.info(f"Найдено {len(repositories)} репозиториев.")
     dict_repo_size = get_repository_sizes(db_url)
-    task_list = fetch_nexus_tasks(nexus_url, "/service/rest/v1/tasks", auth)
+    if not dict_repo_size:
+        logging.warning(
+            "❌ Пропуск сбора метрик размера: не удалось получить данные из БД."
+        )
+        return
 
+    task_list = fetch_nexus_tasks(nexus_url, "/service/rest/v1/tasks", auth)
     update_task_info_metrics(task_list)
     REPO_STORAGE.clear()
 
