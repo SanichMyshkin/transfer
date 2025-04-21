@@ -2,7 +2,7 @@ import requests
 import logging
 from prometheus_client import Gauge
 import urllib3
-from db import get_repository_sizes
+from db.db import get_repository_sizes
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 

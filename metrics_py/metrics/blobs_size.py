@@ -60,11 +60,3 @@ def fetch_blob_metrics(nexus_url, auth):
         logging.error(f"⚠️ Ошибка HTTP при запросе к API Nexus: {e.response.status_code} - {e.response.reason}")
     except requests.exceptions.RequestException as e:
         logging.error(f"❗ Произошла ошибка при запросе к API Nexus: {e}")
-
-
-# Пример вызова функции
-if __name__ == "__main__":
-    NEXUS_URL = "https://your-nexus-instance.com"
-    AUTH = ("username", "password")  # Укажи реальные креды
-
-    fetch_blob_metrics(NEXUS_URL, AUTH)
