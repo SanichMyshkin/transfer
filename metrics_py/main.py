@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from proxyrepo_status import fetch_repositories_metrics
 from repo_size import fetch_repository_sizes
 from blobs_size import fetch_blob_metrics
-from docker_tags import fetch_docker_tags_metrics  # ⬅️ добавили импорт
+from docker_tags_metrics import fetch_docker_tags_metrics  # ⬅️ добавили импорт
 
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -38,12 +38,12 @@ def main():
     logging.info("Метрики VictoriaMetrics доступны на :8000")
 
     while True:
-        logging.info("Запуск сбора статуса репозиториев типа Proxy...")
-        fetch_repositories_metrics(NEXUS_API_URL, auth)
+        #logging.info("Запуск сбора статуса репозиториев типа Proxy...")
+        #fetch_repositories_metrics(NEXUS_API_URL, auth)
 
-        logging.info("Запуск сбора размера репозиториев и блобов...")
-        fetch_blob_metrics(NEXUS_API_URL, auth)
-        fetch_repository_sizes(NEXUS_API_URL, DB_URL, auth)
+        #logging.info("Запуск сбора размера репозиториев и блобов...")
+        #fetch_blob_metrics(NEXUS_API_URL, auth)
+        #fetch_repository_sizes(NEXUS_API_URL, DB_URL, auth)
 
         logging.info("Запуск сбора Docker тегов...")
         fetch_docker_tags_metrics(DB_URL)  # ⬅️ вызов нашей новой функции
