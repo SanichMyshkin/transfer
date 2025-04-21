@@ -194,10 +194,12 @@ proxy_params
 .vscode/
 .idea/
 nexus-data/
-pg-data/
+todo.md
+pg_data/
+
 trash/
 victoria-metrics-data/
-todo.md
+
 
 metrics_py/.vscode/
 
