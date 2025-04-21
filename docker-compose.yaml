@@ -70,7 +70,7 @@ services:
 
   # Nexus Repository Manager
   nexus:
-    image: sonatype/nexus3:3.78.2
+    image: sonatype/nexus3:latest
     restart: unless-stopped
     container_name: nexus
     volumes:
@@ -78,6 +78,7 @@ services:
     ports:
       - "9090:8081"
       - "8082:8082"
+      #- "8083:8083"
     environment:
       - INSTALL4J_ADD_VM_PARAMS=-Xms1024m -Xmx2048m -XX:MaxDirectMemorySize=2g -Djava.util.prefs.userRoot=/nexus-data
       #- TZ=Europe/Moscow
@@ -96,8 +97,10 @@ services:
     container_name: nginx
     ports:
       - "80:80"
+      - "443:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     networks:
       - minio-net
     depends_on:

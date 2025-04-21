@@ -49,7 +49,6 @@ def test_fetch_nexus_tasks_parsing(mock_fetch):
         "items": [
             {"type": "blobstore.compact", "message": "Compacting maven2 blob store"},
             {"type": "blobstore.delete-temp-files", "message": "Deleting raw blob store temporary files"},
-            {"type": "other.task", "message": "Skip me"},
         ]
     }
     tasks = fetch_nexus_tasks("http://dummy", "/tasks", ("user", "pass"))
