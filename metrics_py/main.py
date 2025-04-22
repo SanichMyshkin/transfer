@@ -6,6 +6,7 @@ from config import get_auth
 from config import NEXUS_API_URL
 
 from prometheus_client import start_http_server
+from database.repository_query import get_repository_cleanup_policies
 
 from metrics.repo_status import fetch_repositories_metrics
 from metrics.repo_size import fetch_repository_sizes
@@ -42,4 +43,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    #main()
+    for i in get_repository_cleanup_policies():
+        print(i)
