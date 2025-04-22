@@ -3,10 +3,11 @@ import psycopg2
 from prometheus_client import Gauge
 import logging
 
+
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# Метрика Prometheus: количество тегов у образа + список тегов
+# Метрика Prometheus
 docker_tags_gauge = Gauge(
     "docker_image_tags_info",
     "Информация о Docker-образах и их тегах",
@@ -14,12 +15,13 @@ docker_tags_gauge = Gauge(
 )
 
 
-def process_docker_result(result):
+def process_docker_result(result: list) -> list:
     """
-    Обрабатывает данные из БД и группирует образы по имени, тегам, репозиторию и формату.
-    Возвращает список словарей.
+    Обрабатывает данные из БД и группирует образы.
+    result: список кортежей из БД
+    return: список словарей
     """
-    tags_list = []
+    tags_list: list = []
 
     for row in result:
         image = row[0]
@@ -55,7 +57,7 @@ def process_docker_result(result):
     return tags_list
 
 
-def fetch_docker_tags_metrics(db_url: str):
+def fetch_docker_tags_metrics(db_url: str) -> None:
     try:
         db_params = urlparse(db_url)
 
@@ -63,7 +65,7 @@ def fetch_docker_tags_metrics(db_url: str):
             f"Подключение к базе данных: хост={db_params.hostname}, порт={db_params.port or 5432}, база={db_params.path.lstrip('/')}, пользователь={db_params.username}"
         )
 
-        real_conn_params = {
+        real_conn_params: dict = {
             "host": db_params.hostname,
             "database": db_params.path.lstrip("/"),
             "user": db_params.username,
@@ -76,11 +78,11 @@ def fetch_docker_tags_metrics(db_url: str):
                 logging.debug("Выполнение SQL-запроса к docker_component...")
                 cur.execute("""
                     SELECT
-                        dc.name AS component_name,
+                        dc.name,
                         dc.version,
-                        r.name AS repository_name,
-                        r.recipe_name AS format,
-                        (r.attributes::jsonb -> 'storage' ->> 'blobStoreName') AS blob_store_name
+                        r.name,
+                        r.recipe_name,
+                        (r.attributes::jsonb -> 'storage' ->> 'blobStoreName')
                     FROM
                         docker_component dc
                     JOIN
@@ -88,13 +90,12 @@ def fetch_docker_tags_metrics(db_url: str):
                     JOIN
                         repository r ON dcr.config_repository_id = r.id;
                 """)
-                result = cur.fetchall()
+                result: list = cur.fetchall()
 
         logging.info(f"Получено {len(result)} строк из базы данных.")
 
-        grouped = process_docker_result(result)
+        grouped: list = process_docker_result(result)
 
-        # Сброс старых меток
         docker_tags_gauge.clear()
 
         for entry in grouped:

@@ -1,14 +1,17 @@
 import time
 import logging
+import urllib3
+
 from config import get_auth
 from config import NEXUS_API_URL, DATABASE_URL
+
 from prometheus_client import start_http_server
+
 from metrics.proxyrepo_status import fetch_repositories_metrics
 from metrics.repo_size import fetch_repository_sizes
 from metrics.blobs_size import fetch_blob_metrics
-from metrics.docker_tags_metrics import fetch_docker_tags_metrics  # ⬅️ добавили импорт
+from metrics.docker_tags import fetch_docker_tags_metrics
 
-import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 

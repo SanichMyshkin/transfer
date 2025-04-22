@@ -6,10 +6,8 @@ import time
 from requests.exceptions import ConnectionError, RequestException
 from prometheus_client import Gauge, Info
 
-# Отключение предупреждений об SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Метрика статуса репозитория
 REPO_STATUS = Gauge(
     "nexus_proxy_repo_status",
     "Статус репозитория в Nexus",
@@ -24,28 +22,38 @@ REPO_STATUS = Gauge(
     ],
 )
 
-# Метрика количества по типам
 REPO_COUNT = Gauge("nexus_repo_count", "Количество репозиториев по типу", ["repo_type"])
-
-# Информация о редиректах
 REDIRECT_INFO = Info("nexus_repo_redirect_info", "Информация о редиректах")
 
-# Логирование
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+HEADERS: dict = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120 Safari/537.36"
+    )
 }
 
+session = requests.Session()
+adapter = requests.adapters.HTTPAdapter(max_retries=3)
+session.mount("https://", adapter)
+session.mount("http://", adapter)
 
-def safe_get(url, auth=None, timeout=15, verify=False, max_retries=3):
+
+def safe_get(
+    url: str,
+    auth: tuple = None,
+    timeout: int = 15,
+    verify: bool = False,
+    max_retries: int = 3,
+) -> tuple:
     last_error = None
     for attempt in range(max_retries):
         try:
-            response = requests.get(
+            response = session.get(
                 url,
                 auth=auth,
                 headers=HEADERS,
@@ -58,7 +66,7 @@ def safe_get(url, auth=None, timeout=15, verify=False, max_retries=3):
             last_error = e
             wait = 2**attempt
             logger.warning(
-                f"⚠️ [{url}] Попытка {attempt + 1} не удалась (ConnectionError), жду {wait}s..."
+                f"⚠️ [{url}] Попытка {attempt + 1} не удалась, жду {wait}s..."
             )
             time.sleep(wait)
         except RequestException as e:
@@ -68,27 +76,26 @@ def safe_get(url, auth=None, timeout=15, verify=False, max_retries=3):
     return None, last_error
 
 
-def get_all_repositories(nexus_url, auth):
+def get_all_repositories(nexus_url: str, auth: tuple) -> list:
     endpoint = f"{nexus_url}/service/rest/v1/repositories"
-
     try:
-        response = requests.get(endpoint, auth=auth, timeout=10, verify=False)
+        response = session.get(endpoint, auth=auth, timeout=10, verify=False)
         if response.status_code == 401:
-            logger.error(f"❌ Доступ запрещён (401 Unauthorized) к {endpoint}")
+            logger.error(f"❌ 401 Unauthorized: {endpoint}")
             return []
         elif response.status_code == 403:
-            logger.error(f"❌ Доступ запрещён (403 Forbidden) к {endpoint}")
+            logger.error(f"❌ 403 Forbidden: {endpoint}")
             return []
         response.raise_for_status()
-    except requests.ConnectionError as e:
-        logger.error(f"❌ Невозможно подключиться к Nexus API: {e}")
+    except ConnectionError as e:
+        logger.error(f"❌ Не удалось подключиться к Nexus API: {e}")
         return []
-    except requests.RequestException as e:
-        logger.error(f"❌ Ошибка при запросе Nexus API: {e}")
+    except RequestException as e:
+        logger.error(f"❌ Ошибка при запросе к Nexus API: {e}")
         return []
 
     repos = response.json()
-    type_counts = {}
+    type_counts: dict = {}
 
     for repo in repos:
         repo_type = repo.get("type", "unknown")
@@ -102,16 +109,15 @@ def get_all_repositories(nexus_url, auth):
         {
             "name": r["name"],
             "url": f"{nexus_url}service/rest/repository/browse/{r['name']}/",
-            "type": r["format"],
+            "type": r.get("format", ""),
             "remote": r.get("attributes", {}).get("proxy", {}).get("remoteUrl", ""),
         }
         for r in repos
-        if r["type"] == "proxy"
+        if r.get("type") == "proxy"
     ]
 
 
-
-def is_domain_resolvable(url):
+def is_domain_resolvable(url: str) -> bool:
     try:
         domain = url.split("/")[2]
         socket.gethostbyname(domain)
@@ -121,7 +127,7 @@ def is_domain_resolvable(url):
         return False
 
 
-def format_status(code, error_text=None):
+def format_status(code: int = None, error_text: str = None) -> str:
     if code == 200:
         return "✅"
     elif code == 401:
@@ -132,7 +138,9 @@ def format_status(code, error_text=None):
         return f"❌ ({code})"
 
 
-def check_url_status(name, url, auth=None, check_dns=False):
+def check_url_status(
+    name: str, url: str, auth: tuple = None, check_dns: bool = False
+) -> tuple:
     if not url:
         return "❌ (url is empty)", False, ""
 
@@ -162,7 +170,7 @@ def check_url_status(name, url, auth=None, check_dns=False):
     return format_status(response.status_code), redirected, redirect_chain
 
 
-def check_docker_remote(repo_name, base_url):
+def check_docker_remote(repo_name: str, base_url: str) -> tuple:
     status, redirected, redirect_info = check_url_status(
         f"{repo_name} (remote docker)", base_url, check_dns=True
     )
@@ -180,8 +188,12 @@ def check_docker_remote(repo_name, base_url):
 
 
 def update_prometheus_metrics(
-    repo, nexus_status, remote_status, redirected, redirect_info
-):
+    repo: dict,
+    nexus_status: str,
+    remote_status: str,
+    redirected: bool,
+    redirect_info: str,
+) -> dict:
     healthy = nexus_status.startswith("✅") and remote_status.startswith("✅")
 
     REPO_STATUS.labels(
@@ -208,7 +220,7 @@ def update_prometheus_metrics(
     }
 
 
-def fetch_status(repo, auth):
+def fetch_status(repo: dict, auth: tuple) -> dict:
     nexus_status, nexus_redirected, nexus_redirect_info = check_url_status(
         f"{repo['name']} (Nexus)", repo["url"], auth=auth
     )
@@ -238,7 +250,7 @@ def fetch_status(repo, auth):
     )
 
 
-def fetch_repositories_metrics(nexus_url, auth):
+def fetch_repositories_metrics(nexus_url: str, auth: tuple) -> list:
     REPO_STATUS.clear()
     repos = get_all_repositories(nexus_url, auth)
     return [fetch_status(repo, auth) for repo in repos]

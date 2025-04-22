@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch
-from repo_size import (
+from metrics.repo_size import (
     extract_blob_name_from_task,
     get_task_status_for_blob,
     fetch_nexus_tasks,
@@ -43,7 +43,7 @@ def test_task_status_other_blob():
 
 # === Тест fetch_nexus_tasks (mocked fetch_nexus_data) ===
 
-@patch("repo_size.fetch_nexus_data")
+@patch("metrics.repo_size.fetch_nexus_data")
 def test_fetch_nexus_tasks_parsing(mock_fetch):
     mock_fetch.return_value = {
         "items": [
@@ -59,9 +59,9 @@ def test_fetch_nexus_tasks_parsing(mock_fetch):
 
 # === Тест основного пайплайна fetch_repository_sizes ===
 
-@patch("repo_size.fetch_nexus_data")
-@patch("repo_size.fetch_nexus_tasks")
-@patch("repo_size.get_repository_sizes")
+@patch("metrics.repo_size.fetch_nexus_data")
+@patch("metrics.repo_size.fetch_nexus_tasks")
+@patch("metrics.repo_size.get_repository_sizes")
 def test_fetch_repository_sizes_pipeline(mock_get_sizes, mock_fetch_tasks, mock_fetch_data):
     mock_fetch_data.side_effect = [
         [

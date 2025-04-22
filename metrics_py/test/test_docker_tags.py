@@ -1,5 +1,5 @@
 import pytest
-from docker_tags_metrics import process_docker_result
+from metrics.docker_tags import process_docker_result
 
 @pytest.fixture
 def sample_docker_data():
