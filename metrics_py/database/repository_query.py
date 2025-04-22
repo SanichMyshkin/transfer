@@ -2,7 +2,7 @@ import logging
 from hurry.filesize import size
 from psycopg2 import sql
 
-from db.connection import get_db_connection
+from database.connection import get_db_connection
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"

@@ -1,7 +1,7 @@
 # metrics/docker_tags_data.py
 
 import logging
-from db.connection import get_db_connection
+from database.connection import get_db_connection
 
 
 def fetch_docker_tags_data():

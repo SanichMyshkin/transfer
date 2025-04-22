@@ -1,7 +1,7 @@
 import logging
 from prometheus_client import Gauge
 
-from db.tags_query import fetch_docker_tags_data
+from database.tags_query import fetch_docker_tags_data
 
 # Метрика Prometheus
 docker_tags_gauge = Gauge(
