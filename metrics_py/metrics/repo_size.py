@@ -4,7 +4,7 @@ import requests
 
 from requests import Session
 from prometheus_client import Gauge
-from db.db import get_repository_sizes
+from db.repository_query import get_repository_sizes
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -112,7 +112,7 @@ def update_task_info_metrics(tasks: list) -> None:
         ).set(value)
 
 
-def fetch_repository_sizes(nexus_url: str, db_url: str, auth: tuple) -> None:
+def fetch_repository_sizes(nexus_url: str, auth: tuple) -> None:
     logger.info("Получение списка репозиториев...")
     repositories = fetch_nexus_data(
         nexus_url, "/service/rest/v1/repositorySettings", auth
@@ -123,7 +123,7 @@ def fetch_repository_sizes(nexus_url: str, db_url: str, auth: tuple) -> None:
         return
 
     logger.info(f"Найдено {len(repositories)} репозиториев.")
-    dict_repo_size: dict = get_repository_sizes(db_url)
+    dict_repo_size: dict = get_repository_sizes()
 
     if not dict_repo_size:
         logger.warning(

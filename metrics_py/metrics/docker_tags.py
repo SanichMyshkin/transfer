@@ -1,11 +1,7 @@
-from urllib.parse import urlparse
-import psycopg2
-from prometheus_client import Gauge
 import logging
+from prometheus_client import Gauge
 
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
+from db.tags_query import fetch_docker_tags_data
 
 # Метрика Prometheus
 docker_tags_gauge = Gauge(
@@ -16,19 +12,10 @@ docker_tags_gauge = Gauge(
 
 
 def process_docker_result(result: list) -> list:
-    """
-    Обрабатывает данные из БД и группирует образы.
-    result: список кортежей из БД
-    return: список словарей
-    """
     tags_list: list = []
 
     for row in result:
-        image = row[0]
-        tag = row[1]
-        repo = row[2]
-        repo_format = row[3]
-        blob_name = row[4]
+        image, tag, repo, repo_format, blob_name = row
 
         found = False
         for entry in tags_list:
@@ -57,44 +44,11 @@ def process_docker_result(result: list) -> list:
     return tags_list
 
 
-def fetch_docker_tags_metrics(db_url: str) -> None:
+def fetch_docker_tags_metrics() -> None:
     try:
-        db_params = urlparse(db_url)
-
-        logging.info(
-            f"Подключение к базе данных: хост={db_params.hostname}, порт={db_params.port or 5432}, база={db_params.path.lstrip('/')}, пользователь={db_params.username}"
-        )
-
-        real_conn_params: dict = {
-            "host": db_params.hostname,
-            "database": db_params.path.lstrip("/"),
-            "user": db_params.username,
-            "password": db_params.password,
-            "port": db_params.port or 5432,
-        }
-
-        with psycopg2.connect(**real_conn_params) as conn:
-            with conn.cursor() as cur:
-                logging.debug("Выполнение SQL-запроса к docker_component...")
-                cur.execute("""
-                    SELECT
-                        dc.name,
-                        dc.version,
-                        r.name,
-                        r.recipe_name,
-                        (r.attributes::jsonb -> 'storage' ->> 'blobStoreName')
-                    FROM
-                        docker_component dc
-                    JOIN
-                        docker_content_repository dcr ON dc.repository_id = dcr.repository_id
-                    JOIN
-                        repository r ON dcr.config_repository_id = r.id;
-                """)
-                result: list = cur.fetchall()
-
+        result = fetch_docker_tags_data()
         logging.info(f"Получено {len(result)} строк из базы данных.")
-
-        grouped: list = process_docker_result(result)
+        grouped = process_docker_result(result)
 
         docker_tags_gauge.clear()
 
