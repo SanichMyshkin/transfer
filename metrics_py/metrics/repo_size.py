@@ -3,7 +3,7 @@ import urllib3
 
 from prometheus_client import Gauge
 from database.repository_query import get_repository_sizes, get_repository_data
-from metrics.tasks import filter_blobstore_tasks, get_json_from_nexus
+from metrics.utlis.tasks import filter_blobstore_tasks, get_json_from_nexus
 
 # Настройка логирования
 logging.basicConfig(

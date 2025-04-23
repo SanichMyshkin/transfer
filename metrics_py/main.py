@@ -11,7 +11,7 @@ from metrics.repo_status import fetch_repositories_metrics
 from metrics.repo_size import fetch_repository_metrics
 from metrics.blobs_size import fetch_blob_metrics
 from metrics.docker_tags import fetch_docker_tags_metrics
-from metrics.tasks import fetch_task_metrics
+from metrics.utlis.tasks import fetch_task_metrics
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 

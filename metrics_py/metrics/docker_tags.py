@@ -1,13 +1,14 @@
 import logging
 from prometheus_client import Gauge
 
+from metrics.utlis.url import build_nexus_url
 from database.tags_query import fetch_docker_tags_data
 
 # Метрика Prometheus
 docker_tags_gauge = Gauge(
     "docker_image_tags_info",
     "Информация о Docker-образах и их тегах",
-    ["image_name", "tags", "repository", "format", "blob"],
+    ["image_name", "tags", "repository", "format", "blob", "nexus_url_path"],
 )
 
 
@@ -72,6 +73,7 @@ def fetch_docker_tags_metrics() -> None:
                 repository=repo,
                 format=repo_format,
                 blob=blob,
+                nexus_url_path=build_nexus_url(repo, image, encoding=False)
             ).set(tag_count)
 
         logging.info(f"Метрики обновлены для {len(grouped)} Docker-образов.")
