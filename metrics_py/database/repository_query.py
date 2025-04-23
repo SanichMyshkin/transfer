@@ -25,7 +25,7 @@ def get_repository_sizes() -> dict:
             )
             table_names = [x[0] for x in cur.fetchall()]
             logging.info(f"🔍 Найдено {len(table_names)} таблиц content_repository")
-
+            print(table_names)
             for table in table_names:
                 repo_type = table.replace("_content_repository", "")
                 logging.info(f"📦 Обработка репозитория типа: {repo_type}")
@@ -73,7 +73,7 @@ def get_repository_sizes() -> dict:
     return repo_sizes
 
 
-def get_repository_cleanup_policies() -> list:
+def get_repository_data() -> list:
     """Функция для получения информации о политиках очистки репозиториев"""
     logging.info("🚀 Получение информации о политиках очистки")
 

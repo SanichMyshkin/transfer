@@ -12,7 +12,7 @@ docker_tags_gauge = Gauge(
 
 
 def process_docker_result(result: list) -> list:
-    tags_list: list = []
+    tags_list = []
 
     for row in result:
         image, tag, repo, repo_format, blob_name = row
