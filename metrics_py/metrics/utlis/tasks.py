@@ -70,7 +70,6 @@ def export_tasks_to_metrics(tasks: list) -> None:
         task for task in tasks
         if task.get("type") in ("blobstore.delete-temp-files", "blobstore.compact")
     ]
-    logger.info(f"📊 Обновляем метрики для {len(filtered_tasks)} задач")
 
     for task in filtered_tasks:
         task_id = task.get("id", "N/A")
@@ -90,6 +89,7 @@ def export_tasks_to_metrics(tasks: list) -> None:
                 next_run=task.get("nextRun") or "null",
                 last_run=task.get("lastRun") or "null",
             ).set(value)
+            logger.info(f"📊 Обновляем метрики для задачи - {task_name} статус {last_result}")
         except Exception as e:
             logger.warning(f"⚠️ Ошибка метрики для {task_id}: {e}", exc_info=True)
 
