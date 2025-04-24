@@ -17,21 +17,31 @@ BLOB_STORAGE_USAGE = Gauge(
 )
 
 
-def get_blobstores(nexus_url: str, auth: tuple) -> list:
+def get_blobstores(nexus_url: str, auth: tuple) -> list | None:
     """Получает список blobstores из Nexus API."""
     session = requests.Session()
     adapter = requests.adapters.HTTPAdapter(max_retries=3)
     session.mount("https://", adapter)
     session.mount("http://", adapter)
 
-    response = session.get(
-        f"{nexus_url}/service/rest/v1/blobstores",
-        auth=auth,
-        verify=False,
-        timeout=10,
-    )
-    response.raise_for_status()
-    return response.json()
+    try:
+        response = session.get(
+            f"{nexus_url}/service/rest/v1/blobstores",
+            auth=auth,
+            verify=False,
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.ConnectionError:
+        logging.error(f"❌ Nexus недоступен: {nexus_url}")
+    except requests.exceptions.Timeout:
+        logging.error(f"⏳ Таймаут при подключении к {nexus_url}")
+    except requests.exceptions.HTTPError as e:
+        logging.error(f"⚠️ HTTP {e.response.status_code}: {e.response.reason} по адресу {nexus_url}")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"❗ Ошибка запроса: {e}")
+    return None
 
 
 def update_metrics(blobstores: list) -> None:
@@ -53,21 +63,18 @@ def update_metrics(blobstores: list) -> None:
         ).set(blob["availableSpaceInBytes"])
 
         logging.info(
-            f"[{blob['name']}] used: {blob['totalSizeInBytes']} | available: {blob['availableSpaceInBytes']} | type: {blob['type']} | count: {blob['blobCount']}"
+            f"[{blob['name']}] used: {blob['totalSizeInBytes']} | "
+            f"available: {blob['availableSpaceInBytes']} | "
+            f"type: {blob['type']} | count: {blob['blobCount']}"
         )
 
 
 def fetch_blob_metrics(nexus_url: str, auth: tuple) -> None:
     """Основная функция — получение blobstore и обновление метрик."""
     logging.info("Запрос blobstore из Nexus...")
-    try:
-        blobstores = get_blobstores(nexus_url, auth)
-        update_metrics(blobstores)
-    except requests.exceptions.ConnectionError:
-        logging.error("❌ Не удалось подключиться к API Nexus.")
-    except requests.exceptions.Timeout:
-        logging.error("⏳ Таймаут при подключении к API Nexus.")
-    except requests.exceptions.HTTPError as e:
-        logging.error(f"⚠️ HTTP ошибка: {e.response.status_code} - {e.response.reason}")
-    except requests.exceptions.RequestException as e:
-        logging.error(f"❗ Ошибка запроса: {e}")
+    blobstores = get_blobstores(nexus_url, auth)
+    if blobstores is None:
+        logging.warning("🚫 Blobstore данные не получены. Метрики не будут обновлены.")
+        return
+
+    update_metrics(blobstores)

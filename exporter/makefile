@@ -6,5 +6,10 @@ push:
 build:
 	docker build -t nexus-metrics .
 
-run:
-	
+stop:
+	docker stop nexus-metrics
+	docker rm nexus-metrics
+	docker rmi nexus-metrics
+
+l:
+	docker logs nexus-metrics
