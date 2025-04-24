@@ -43,7 +43,7 @@ def main():
         task_data = get_json_from_nexus(NEXUS_API_URL, "/service/rest/v1/tasks", auth)
 
         logging.info("Запуск сбора размера репозиториев...")
-        fetch_repository_metrics(NEXUS_API_URL, auth, task_data)
+        fetch_repository_metrics(NEXUS_API_URL, auth)
 
         logging.info("Запуск сбора задач...")
         fetch_task_metrics(task_data)

@@ -1,6 +1,7 @@
 import logging
 import urllib3
 import requests
+from requests.exceptions import RequestException, Timeout, HTTPError
 from requests import Session
 from prometheus_client import Gauge
 
@@ -32,14 +33,23 @@ session: Session = requests.Session()
 def get_json_from_nexus(nexus_url: str, endpoint: str, auth: tuple) -> dict | list | None:
     url = f"{nexus_url.rstrip('/')}{endpoint}"
     logger.info(f"📡 Запрос к Nexus: {url}")
+    
     try:
         response = session.get(url, auth=auth, verify=False, timeout=15)
-        if response.status_code == 200:
-            logger.info(f"✅ Ответ от Nexus получен: {url}")
-            return response.json()
-        logger.error(f"❌ Код {response.status_code} от {url}")
-    except requests.exceptions.RequestException as e:
-        logger.error(f"❌ Ошибка при запросе {url}: {e}", exc_info=True)
+        response.raise_for_status()  # Проверка на HTTP ошибки (4xx, 5xx)
+
+        logger.info(f"✅ Ответ от Nexus получен: {url} (Код: {response.status_code})")
+        return response.json()
+    
+    except Timeout:
+        logger.error(f"⏳ Тайм-аут при запросе к {url}. Сервер не отвечает в течение установленного времени (15 секунд).")
+    except HTTPError as http_err:
+        logger.error(f"❌ Ошибка HTTP {http_err.response.status_code} при запросе к {url}: {http_err}")
+    except RequestException as req_err:
+        logger.error(f"❌ Общая ошибка при запросе к {url}: {req_err}", exc_info=True)
+    except Exception as e:
+        logger.error(f"❌ Неизвестная ошибка при запросе к {url}: {str(e)}", exc_info=True)
+    
     return None
 
 
