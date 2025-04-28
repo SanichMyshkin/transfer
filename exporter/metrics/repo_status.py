@@ -46,34 +46,26 @@ session.mount("http://", adapter)
 def safe_get(
     url: str,
     auth: tuple = None,
-    timeout: int = 15,
+    timeout: int = 10,
     verify: bool = False,
-    max_retries: int = 3,
 ) -> tuple:
-    last_error = None
-    for attempt in range(max_retries):
-        try:
-            response = session.get(
-                url,
-                auth=auth,
-                headers=HEADERS,
-                timeout=timeout,
-                verify=verify,
-                allow_redirects=True,
-            )
-            return response, None
-        except ConnectionError as e:
-            last_error = e
-            wait = 2**attempt
-            logger.warning(
-                f"⚠️ [{url}] Попытка {attempt + 1} не удалась, жду {wait}s..."
-            )
-            time.sleep(wait)
-        except RequestException as e:
-            last_error = e
-            logger.warning(f"❌ Ошибка запроса к {url}: {e}")
-            break
-    return None, last_error
+    try:
+        response = session.get(
+            url,
+            auth=auth,
+            headers=HEADERS,
+            timeout=timeout,
+            verify=verify,
+            allow_redirects=True,
+        )
+        return response, None
+    except ConnectionError as e:
+        logger.warning(f"❌ Ошибка подключения к {url}: {e}")
+        return None, e
+    except RequestException as e:
+        logger.warning(f"❌ Ошибка запроса к {url}: {e}")
+        return None, e
+
 
 
 def get_all_repositories(nexus_url: str, auth: tuple) -> list:
@@ -187,39 +179,6 @@ def check_docker_remote(repo_name: str, base_url: str) -> tuple:
     return status, redirected, redirect_info
 
 
-def update_prometheus_metrics(
-    repo: dict,
-    nexus_status: str,
-    remote_status: str,
-    redirected: bool,
-    redirect_info: str,
-) -> dict:
-    healthy = nexus_status.startswith("✅") and remote_status.startswith("✅")
-
-    REPO_STATUS.labels(
-        repo_name=repo["name"],
-        repo_format=repo["type"],
-        nexus_url=repo["url"],
-        remote_url=repo["remote"] or "",
-        nexus_status=nexus_status,
-        remote_status=remote_status,
-        redirected=str(redirected).lower(),
-    ).set(1 if healthy else 0)
-
-    if redirect_info:
-        REDIRECT_INFO.info({repo["name"]: redirect_info})
-
-    logger.info(f"📦 Статус репозитория {repo['name']}: {'✅' if healthy else '❌'}")
-    return {
-        "repo": repo["name"],
-        "nexus": nexus_status,
-        "remote": remote_status,
-        "status": "✅" if healthy else "❌",
-        "redirected": redirected,
-        "redirect_chain": redirect_info,
-    }
-
-
 def fetch_status(repo: dict, auth: tuple) -> dict:
     nexus_status, nexus_redirected, nexus_redirect_info = check_url_status(
         f"{repo['name']} (Nexus)", repo["url"], auth=auth
@@ -241,16 +200,56 @@ def fetch_status(repo: dict, auth: tuple) -> dict:
             "",
         )
 
-    return update_prometheus_metrics(
-        repo,
-        nexus_status,
-        remote_status,
-        nexus_redirected or remote_redirected,
-        " | ".join(filter(None, [nexus_redirect_info, remote_redirect_info])),
-    )
+    return {
+        "repo": repo,
+        "nexus_status": nexus_status,
+        "remote_status": remote_status,
+        "redirected": nexus_redirected or remote_redirected,
+        "redirect_chain": " | ".join(
+            filter(None, [nexus_redirect_info, remote_redirect_info])
+        ),
+    }
+
+
+def update_all_metrics(statuses: list):
+    REPO_STATUS.clear()
+
+    for status in statuses:
+        repo = status["repo"]
+        healthy = status["nexus_status"].startswith("✅") and status[
+            "remote_status"
+        ].startswith("✅")
+
+        REPO_STATUS.labels(
+            repo_name=repo["name"],
+            repo_format=repo["type"],
+            nexus_url=repo["url"],
+            remote_url=repo["remote"] or "",
+            nexus_status=status["nexus_status"],
+            remote_status=status["remote_status"],
+            redirected=str(status["redirected"]).lower(),
+        ).set(1 if healthy else 0)
+
+        if status["redirect_chain"]:
+            REDIRECT_INFO.info({repo["name"]: status["redirect_chain"]})
+
+        logger.info(
+            f"📦 Статус репозитория {repo['name']}: {'✅' if healthy else '❌'}"
+        )
 
 
 def fetch_repositories_metrics(nexus_url: str, auth: tuple) -> list:
-    REPO_STATUS.clear()
+    start = time.perf_counter()
+
     repos = get_all_repositories(nexus_url, auth)
-    return [fetch_status(repo, auth) for repo in repos]
+    logger.info(f"🔍 Получено {len(repos)} репозиториев, начинаем проверку URL...")
+
+    statuses = [fetch_status(repo, auth) for repo in repos]
+    logger.info(
+        f"✅ Проверка всех URL завершена за {time.perf_counter() - start:.2f} секунд, обновляем метрики..."
+    )
+
+    update_all_metrics(statuses)
+    logger.info("📈 Метрики успешно обновлены в Prometheus.")
+
+    return statuses

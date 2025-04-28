@@ -13,3 +13,4 @@ stop:
 
 l:
 	docker logs nexus-metrics
+	

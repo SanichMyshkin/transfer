@@ -3,7 +3,7 @@ import logging
 import urllib3
 
 from config import get_auth
-from config import NEXUS_API_URL
+from config import NEXUS_API_URL, LAUNCH_INTERVAl
 import os
 
 from prometheus_client import start_http_server
@@ -51,7 +51,7 @@ def main():
         logging.info("Запуск сбора Docker тегов...")
         fetch_docker_tags_metrics()
 
-        time.sleep(LAUNCH_INTERVAL)
+        time.sleep(LAUNCH_INTERVAl)
 
 
 if __name__ == "__main__":
