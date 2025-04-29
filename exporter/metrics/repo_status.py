@@ -1,9 +1,8 @@
-import requests
+import httpx
 import socket
 import logging
 import urllib3
 import time
-from requests.exceptions import ConnectionError, RequestException
 from prometheus_client import Gauge, Info
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -37,41 +36,25 @@ HEADERS: dict = {
     )
 }
 
-session = requests.Session()
-adapter = requests.adapters.HTTPAdapter(max_retries=3)
-session.mount("https://", adapter)
-session.mount("http://", adapter)
+client = httpx.Client(follow_redirects=True, headers=HEADERS, verify=False)
 
 
-def safe_get(
-    url: str,
-    auth: tuple = None,
-    timeout: int = 10,
-    verify: bool = False,
-) -> tuple:
+def safe_get(url: str, auth: tuple = None, timeout: int = 10) -> tuple:
     try:
-        response = session.get(
-            url,
-            auth=auth,
-            headers=HEADERS,
-            timeout=timeout,
-            verify=verify,
-            allow_redirects=True,
-        )
+        response = client.get(url, auth=auth, timeout=timeout)
         return response, None
-    except ConnectionError as e:
+    except httpx.ConnectError as e:
         logger.warning(f"❌ Ошибка подключения к {url}: {e}")
         return None, e
-    except RequestException as e:
+    except httpx.RequestError as e:
         logger.warning(f"❌ Ошибка запроса к {url}: {e}")
         return None, e
 
 
-
 def get_all_repositories(nexus_url: str, auth: tuple) -> list:
-    endpoint = f"{nexus_url}/service/rest/v1/repositories"
+    endpoint = f"{nexus_url}service/rest/v1/repositories"
     try:
-        response = session.get(endpoint, auth=auth, timeout=10, verify=False)
+        response = client.get(endpoint, auth=auth, timeout=10)
         if response.status_code == 401:
             logger.error(f"❌ 401 Unauthorized: {endpoint}")
             return []
@@ -79,10 +62,10 @@ def get_all_repositories(nexus_url: str, auth: tuple) -> list:
             logger.error(f"❌ 403 Forbidden: {endpoint}")
             return []
         response.raise_for_status()
-    except ConnectionError as e:
+    except httpx.ConnectError as e:
         logger.error(f"❌ Не удалось подключиться к Nexus API: {e}")
         return []
-    except RequestException as e:
+    except httpx.RequestError as e:
         logger.error(f"❌ Ошибка при запросе к Nexus API: {e}")
         return []
 
@@ -151,7 +134,7 @@ def check_url_status(
         logger.info(f"🔁 {name} редиректы:")
         chain = []
         for resp in response.history:
-            loc = resp.headers.get("Location", "<unknown>")
+            loc = resp.headers.get("location", "<unknown>")
             logger.info(f"➡️ {resp.status_code} → {loc}")
             chain.append(f"{resp.status_code} → {loc}")
         redirect_chain = " > ".join(chain)
