@@ -46,7 +46,7 @@ session.mount("http://", adapter)
 def safe_get(
     url: str,
     auth: tuple = None,
-    timeout: int = 10,
+    timeout: int = 15,
 ) -> tuple:
     try:
         response = session.get(
