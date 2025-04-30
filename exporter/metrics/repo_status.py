@@ -46,7 +46,7 @@ session.mount("http://", adapter)
 def safe_get(
     url: str,
     auth: tuple = None,
-    timeout: int = 15,
+    timeout: int = 20,
 ) -> tuple:
     try:
         response = session.get(
@@ -69,7 +69,7 @@ def safe_get(
 def get_all_repositories(nexus_url: str, auth: tuple) -> list:
     endpoint = f"{nexus_url}/service/rest/v1/repositories"
     try:
-        response = session.get(endpoint, auth=auth, timeout=10, verify=False)
+        response = session.get(endpoint, auth=auth, timeout=20)
         if response.status_code == 401:
             logger.error(f"❌ 401 Unauthorized: {endpoint}")
             return []
