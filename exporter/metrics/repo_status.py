@@ -43,27 +43,56 @@ session.mount("https://", adapter)
 session.mount("http://", adapter)
 
 
+import requests
+from requests.exceptions import SSLError, ConnectionError, RequestException
+import urllib3
+
+# Отключаем предупреждения, если используем verify=False
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 def safe_get(
     url: str,
     auth: tuple = None,
     timeout: int = 20,
 ) -> tuple:
     try:
+        # Первая попытка — безопасная
         response = session.get(
             url,
             auth=auth,
             headers=HEADERS,
             timeout=timeout,
-            # verify=False,
+            verify=True,
             allow_redirects=True,
         )
         return response, None
+
+    except SSLError as ssl_err:
+        logger.warning(f"⚠️ SSL ошибка при обращении к {url}: {ssl_err}")
+        try:
+            # Вторая попытка — небезопасная (SSL отключен)
+            response = session.get(
+                url,
+                auth=auth,
+                headers=HEADERS,
+                timeout=timeout,
+                verify=False,
+                allow_redirects=True,
+            )
+            logger.warning(f"⚠️ Использован verify=False для {url}")
+            return response, None
+        except RequestException as e:
+            logger.warning(f"❌ Ошибка (без verify) при обращении к {url}: {e}")
+            return None, e
+
     except ConnectionError as e:
         logger.warning(f"❌ Ошибка подключения к {url}: {e}")
         return None, e
+
     except RequestException as e:
         logger.warning(f"❌ Ошибка запроса к {url}: {e}")
         return None, e
+
 
 
 def get_all_repositories(nexus_url: str, auth: tuple) -> list:
