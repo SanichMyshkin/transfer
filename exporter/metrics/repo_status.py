@@ -54,7 +54,7 @@ def safe_get(
             auth=auth,
             headers=HEADERS,
             timeout=timeout,
-            #verify=False,
+            # verify=False,
             allow_redirects=True,
         )
         return response, None

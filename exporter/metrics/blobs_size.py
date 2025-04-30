@@ -38,7 +38,9 @@ def get_blobstores(nexus_url: str, auth: tuple) -> list | None:
     except requests.exceptions.Timeout:
         logging.error(f"⏳ Таймаут при подключении к {nexus_url}")
     except requests.exceptions.HTTPError as e:
-        logging.error(f"⚠️ HTTP {e.response.status_code}: {e.response.reason} по адресу {nexus_url}")
+        logging.error(
+            f"⚠️ HTTP {e.response.status_code}: {e.response.reason} по адресу {nexus_url}"
+        )
     except requests.exceptions.RequestException as e:
         logging.error(f"❗ Ошибка запроса: {e}")
     return None
