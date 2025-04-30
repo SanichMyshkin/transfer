@@ -1,5 +1,4 @@
 import logging
-import urllib3
 
 from prometheus_client import Gauge
 from database.repository_query import get_repository_sizes, get_repository_data
@@ -10,7 +9,6 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(module)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 REPO_STORAGE = Gauge(
     "nexus_repo_size",
