@@ -1,10 +1,8 @@
 import time
 import logging
-import urllib3
 
 from config import get_auth
-from config import NEXUS_API_URL, LAUNCH_INTERVAl
-import os
+from config import NEXUS_API_URL, LAUNCH_INTERVAL
 
 from prometheus_client import start_http_server
 
@@ -14,16 +12,11 @@ from metrics.blobs_size import fetch_blob_metrics
 from metrics.docker_tags import fetch_docker_tags_metrics
 from metrics.utlis.tasks import fetch_task_metrics, get_json_from_nexus
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
-
-# Интервал запуска (по умолчанию 9000 сек)
-LAUNCH_INTERVAL = int(os.getenv("LAUNCH_INTERVAl", 9000))
 
 
 def main():
@@ -51,7 +44,7 @@ def main():
         logging.info("Запуск сбора Docker тегов...")
         fetch_docker_tags_metrics()
 
-        time.sleep(LAUNCH_INTERVAl)
+        time.sleep(LAUNCH_INTERVAL)
 
 
 if __name__ == "__main__":
