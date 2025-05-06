@@ -11,29 +11,20 @@ USER_NAME = os.getenv("USER_NAME")
 PASSWORD = os.getenv("PASSWORD")
 BASE_URL = os.getenv("BASE_URL")
 
+# Настраиваемые сроки хранения по префиксам
+PREFIX_RETENTION = {
+    "dev": timedelta(days=7),
+    "test": timedelta(days=14),
+    "release": timedelta(days=90),
+    "master": timedelta(days=180),
+}
 
-IMAGE_PREFIXES = [
-    "dev-",
-    "test-",
-    "release",
-    "master",
-]
-
-TIME_LIMIT = timedelta(days=0)
-RESERVED_MINIMUM = 2  # Количество сохраняемых последних образов на префикс
+DEFAULT_RETENTION = timedelta(days=30)
+RESERVED_MINIMUM = 2  # Минимум сохраняемых образов на префикс
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
-
-
-def extract_prefix(version):
-    for prefix in IMAGE_PREFIXES:
-        if version.startswith(prefix):
-            return prefix
-    if "-" in version:
-        return version.split("-")[0] + "-"
-    return ""
 
 
 def get_repository_components(repo_name):
@@ -54,11 +45,13 @@ def get_repository_components(repo_name):
             response.raise_for_status()
             data = response.json()
         except requests.exceptions.RequestException as e:
-            logging.error(f"Ошибка при получении компонентов: {e}")
+            logging.error(
+                f"❌ Ошибка при получении компонентов репозитория '{repo_name}': {e}"
+            )
             return []
 
         if "items" not in data:
-            logging.error("Некорректный формат ответа: отсутствует 'items'")
+            logging.error("❌ Некорректный формат ответа: отсутствует 'items'")
             return []
 
         components.extend(data["items"])
@@ -76,69 +69,103 @@ def delete_component(component_id, component_name, component_version):
         response = requests.delete(url, auth=(USER_NAME, PASSWORD))
         response.raise_for_status()
         logging.info(
-            f"✅ Удалён: {component_name} (версия {component_version}, ID: {component_id})"
+            f"✅ Удалён образ: {component_name} (версия {component_version}, ID: {component_id})"
         )
     except requests.exceptions.RequestException as e:
-        logging.error(f"Ошибка при удалении компонента {component_id}: {e}")
+        logging.error(f"❌ Ошибка при удалении компонента {component_id}: {e}")
+
+
+def get_prefix_and_retention(version: str):
+    version_lower = version.lower()
+    for prefix, retention in PREFIX_RETENTION.items():
+        if version_lower.startswith(prefix.lower()):
+            return prefix, retention
+    return "без_префикса", DEFAULT_RETENTION
+
 
 
 def filter_components_to_delete(components):
-    prefix_groups = {}
+    now_utc = datetime.now(timezone.utc)
+    grouped = {}
+
     for component in components:
         version = component.get("version", "")
-        prefix = extract_prefix(version)
-        if not prefix:
-            continue
-
         assets = component.get("assets", [])
-        if not assets:
+        if not assets or not version:
+            logging.info(
+                f"ℹ️ Пропущен компонент без версии или ассетов: {component.get('name', 'Без имени')}"
+            )
             continue
 
         last_modified_str = assets[0].get("lastModified")
         if not last_modified_str:
+            logging.info(f"ℹ️ Пропущен компонент без даты: {version}")
             continue
 
         try:
             last_modified = parse(last_modified_str)
         except Exception as e:
-            logging.error(f"Ошибка парсинга даты {last_modified_str}: {e}")
+            logging.error(
+                f"❌ Ошибка парсинга даты '{last_modified_str}' для версии {version}: {e}"
+            )
             continue
 
-        component["last_modified"] = last_modified
-        prefix_groups.setdefault(prefix, []).append(component)
-
-    now_utc = datetime.now(timezone.utc)
-    # now_utc = datetime.utcnow().replace(tzinfo=pytz.UTC)
+        prefix, retention = get_prefix_and_retention(version)
+        component.update(
+            {"last_modified": last_modified, "retention": retention, "prefix": prefix}
+        )
+        grouped.setdefault(prefix, []).append(component)
 
     to_delete = []
-    for prefix, group in prefix_groups.items():
-        sorted_components = sorted(
-            group, key=lambda x: x["last_modified"], reverse=True
+
+    for prefix, group in grouped.items():
+        sorted_group = sorted(group, key=lambda x: x["last_modified"], reverse=True)
+        logging.info(
+            f"📦 Префикс '{prefix}' — срок хранения: {group[0]['retention'].days} дней, всего образов: {len(group)}"
         )
 
-        for component in sorted_components[RESERVED_MINIMUM:]:
+        for i, component in enumerate(sorted_group):
+            name = component.get("name", "Без имени")
+            version = component.get("version", "Без версии")
             age = now_utc - component["last_modified"]
-            if age > TIME_LIMIT:
+            retention = component["retention"]
+
+            if i < RESERVED_MINIMUM:
+                logging.info(
+                    f"⏸ Сохранён (входит в RESERVED_MINIMUM): {name} {version}"
+                )
+                continue
+
+            if age > retention:
+                logging.info(
+                    f"🗑 К удалению: {name} {version} — старше {retention.days} дней (возраст: {age.days} дн.)"
+                )
                 to_delete.append(component)
+            else:
+                logging.info(
+                    f"⏩ Пропущен (срок хранения не вышел): {name} {version} — возраст: {age.days} дн., лимит: {retention.days} дн."
+                )
 
     return to_delete
 
 
 def clear_repository(repo_name):
-    logging.info(f"🔄 Начало очистки репозитория {repo_name}")
+    logging.info(f"🔄 Начало очистки репозитория '{repo_name}'")
 
     components = get_repository_components(repo_name)
     if not components:
-        logging.warning("Компоненты не найдены")
+        logging.warning(f"⚠️ Компоненты в репозитории '{repo_name}' не найдены")
         return
 
     to_delete = filter_components_to_delete(components)
 
     if not to_delete:
-        logging.info("Нет компонентов для удаления")
+        logging.info(f"✅ Нет компонентов для удаления в репозитории '{repo_name}'")
         return
 
-    logging.info(f"🚮 Найдено {len(to_delete)} компонентов для удаления")
+    logging.info(
+        f"🚮 Удаляется {len(to_delete)} компонент(ов) из репозитория '{repo_name}'"
+    )
     for component in to_delete:
         delete_component(
             component["id"],
@@ -148,8 +175,15 @@ def clear_repository(repo_name):
 
 
 if __name__ == "__main__":
-    response = requests.get(f"{BASE_URL}/service/rest/v1/repositories")
-    data = response.json()
+    try:
+        response = requests.get(
+            f"{BASE_URL}/service/rest/v1/repositories", auth=(USER_NAME, PASSWORD)
+        )
+        response.raise_for_status()
+        data = response.json()
+    except requests.exceptions.RequestException as e:
+        logging.error(f"❌ Не удалось получить список репозиториев: {e}")
+        exit(1)
 
     result = [
         repo.get("name")
@@ -157,4 +191,9 @@ if __name__ == "__main__":
         if repo.get("format") == "docker" and repo.get("type") == "hosted"
     ]
 
-    list(map(clear_repository, result))
+    if not result:
+        logging.error("❌ Репозитории типа docker/hosted не найдены")
+        exit(1)
+
+    for repo_name in result:
+        clear_repository(repo_name)
