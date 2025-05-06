@@ -195,7 +195,8 @@ proxy_params
 .idea/
 nexus-data/
 todo.md
-pg_data/
+pg_data*/
+ntest/
 
 trash/
 victoria-metrics-data/

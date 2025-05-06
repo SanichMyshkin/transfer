@@ -3,7 +3,7 @@ import socket
 import logging
 import urllib3
 import time
-from requests.exceptions import ConnectionError, RequestException
+from requests.exceptions import ConnectionError, RequestException, SSLError
 from prometheus_client import Gauge, Info
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -42,13 +42,6 @@ adapter = requests.adapters.HTTPAdapter(max_retries=0)
 session.mount("https://", adapter)
 session.mount("http://", adapter)
 
-
-import requests
-from requests.exceptions import SSLError, ConnectionError, RequestException
-import urllib3
-
-# Отключаем предупреждения, если используем verify=False
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def safe_get(
     url: str,
@@ -92,7 +85,6 @@ def safe_get(
     except RequestException as e:
         logger.warning(f"❌ Ошибка запроса к {url}: {e}")
         return None, e
-
 
 
 def get_all_repositories(nexus_url: str, auth: tuple) -> list:

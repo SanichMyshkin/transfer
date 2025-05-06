@@ -79,12 +79,9 @@ services:
       - "9090:8081"
       - "8082:8082"
       - "8085:8085"
+      - "8087:8087"
     environment:
       - INSTALL4J_ADD_VM_PARAMS=-Xms1024m -Xmx2048m -XX:MaxDirectMemorySize=2g -Djava.util.prefs.userRoot=/nexus-data
-      #- TZ=Europe/Moscow
-      #- NEXUS_DATASTORE_NEXUS_JDBCURL=jdbc:postgresql://postgres:5432/nexus
-      #- NEXUS_DATASTORE_NEXUS_USERNAME=${POSTGRES_USER}
-      #- NEXUS_DATASTORE_NEXUS_PASSWORD=${POSTGRES_PASSWORD}
     networks:
       - minio-net
     depends_on:
@@ -106,7 +103,7 @@ services:
     depends_on:
       - nexus
 
-  # PostgreSQL database
+  #PostgreSQL database
   postgres:
     image: postgres:16
     container_name: postgres
