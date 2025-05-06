@@ -3,5 +3,5 @@ re:
 	bash reset/doc.sh
 
 test:
-	export PYTHONPATH=$(pwd)
-	pytest --cov=cleaner tests/
+#pytest tests/
+	pytest --cov=app --cov-report=term-missing

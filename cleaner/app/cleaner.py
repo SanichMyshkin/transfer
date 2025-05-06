@@ -1,78 +1,9 @@
-import os
-from dotenv import load_dotenv
-import requests
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from dateutil.parser import parse
 
-load_dotenv()
-
-USER_NAME = os.getenv("USER_NAME")
-PASSWORD = os.getenv("PASSWORD")
-BASE_URL = os.getenv("BASE_URL")
-
-# Настраиваемые сроки хранения по префиксам
-PREFIX_RETENTION = {
-    "dev": timedelta(days=7),
-    "test": timedelta(days=14),
-    "release": timedelta(days=90),
-    "master": timedelta(days=180),
-}
-
-DEFAULT_RETENTION = timedelta(days=30)
-RESERVED_MINIMUM = 2  # Минимум сохраняемых образов на префикс
-
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
-
-def get_repository_components(repo_name):
-    components = []
-    continuation_token = None
-
-    while True:
-        params = {"repository": repo_name}
-        if continuation_token:
-            params["continuationToken"] = continuation_token
-
-        try:
-            response = requests.get(
-                f"{BASE_URL}service/rest/v1/components",
-                auth=(USER_NAME, PASSWORD),
-                params=params,
-            )
-            response.raise_for_status()
-            data = response.json()
-        except requests.exceptions.RequestException as e:
-            logging.error(
-                f"❌ Ошибка при получении компонентов репозитория '{repo_name}': {e}"
-            )
-            return []
-
-        if "items" not in data:
-            logging.error("❌ Некорректный формат ответа: отсутствует 'items'")
-            return []
-
-        components.extend(data["items"])
-        continuation_token = data.get("continuationToken")
-
-        if not continuation_token:
-            break
-
-    return components
-
-
-def delete_component(component_id, component_name, component_version):
-    url = f"{BASE_URL}service/rest/v1/components/{component_id}"
-    try:
-        response = requests.delete(url, auth=(USER_NAME, PASSWORD))
-        response.raise_for_status()
-        logging.info(
-            f"✅ Удалён образ: {component_name} (версия {component_version}, ID: {component_id})"
-        )
-    except requests.exceptions.RequestException as e:
-        logging.error(f"❌ Ошибка при удалении компонента {component_id}: {e}")
+from config import RESERVED_MINIMUM, PREFIX_RETENTION, DEFAULT_RETENTION
+from nexus_api import get_repository_components, delete_component
 
 
 def get_prefix_and_retention(version: str):
@@ -80,8 +11,7 @@ def get_prefix_and_retention(version: str):
     for prefix, retention in PREFIX_RETENTION.items():
         if version_lower.startswith(prefix.lower()):
             return prefix, retention
-    return "без_префикса", DEFAULT_RETENTION
-
+    return None, DEFAULT_RETENTION
 
 
 def filter_components_to_delete(components):
@@ -112,7 +42,12 @@ def filter_components_to_delete(components):
 
         prefix, retention = get_prefix_and_retention(version)
         component.update(
-            {"last_modified": last_modified, "retention": retention, "prefix": prefix}
+            {
+                "last_modified": last_modified,
+                "retention": retention,
+                "prefix": prefix,
+                "has_prefix": prefix is not None,
+            }
         )
         grouped.setdefault(prefix, []).append(component)
 
@@ -120,8 +55,10 @@ def filter_components_to_delete(components):
 
     for prefix, group in grouped.items():
         sorted_group = sorted(group, key=lambda x: x["last_modified"], reverse=True)
+        retention_days = group[0]["retention"].days
+        prefix_display = prefix if prefix else "не определен"
         logging.info(
-            f"📦 Префикс '{prefix}' — срок хранения: {group[0]['retention'].days} дней, всего образов: {len(group)}"
+            f"📦 Префикс '{prefix_display}' — срок хранения: {retention_days} дней, всего образов: {len(group)}"
         )
 
         for i, component in enumerate(sorted_group):
@@ -172,28 +109,3 @@ def clear_repository(repo_name):
             component.get("name", "Без имени"),
             component.get("version", "Без версии"),
         )
-
-
-if __name__ == "__main__":
-    try:
-        response = requests.get(
-            f"{BASE_URL}/service/rest/v1/repositories", auth=(USER_NAME, PASSWORD)
-        )
-        response.raise_for_status()
-        data = response.json()
-    except requests.exceptions.RequestException as e:
-        logging.error(f"❌ Не удалось получить список репозиториев: {e}")
-        exit(1)
-
-    result = [
-        repo.get("name")
-        for repo in data
-        if repo.get("format") == "docker" and repo.get("type") == "hosted"
-    ]
-
-    if not result:
-        logging.error("❌ Репозитории типа docker/hosted не найдены")
-        exit(1)
-
-    for repo_name in result:
-        clear_repository(repo_name)
