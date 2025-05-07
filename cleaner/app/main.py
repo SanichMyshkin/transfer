@@ -3,8 +3,9 @@ import requests
 from config import BASE_URL, USER_NAME, PASSWORD
 from cleaner import clear_repository
 
+# Включи logging для всех уровней
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 

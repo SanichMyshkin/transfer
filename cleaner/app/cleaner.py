@@ -1,9 +1,24 @@
 import logging
+import os
 from datetime import datetime, timezone
 from dateutil.parser import parse
 
 from config import RESERVED_MINIMUM, PREFIX_RETENTION, DEFAULT_RETENTION
 from nexus_api import get_repository_components, delete_component
+
+
+os.makedirs("logs", exist_ok=True)
+
+# 🪵 Настройка логгера
+log_filename = datetime.now().strftime("logs/cleaner_%Y-%m-%d.log")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(log_filename, encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
+)
 
 
 def get_prefix_and_retention(version: str):
@@ -56,7 +71,7 @@ def filter_components_to_delete(components):
     for prefix, group in grouped.items():
         sorted_group = sorted(group, key=lambda x: x["last_modified"], reverse=True)
         retention_days = group[0]["retention"].days
-        prefix_display = prefix if prefix else "не определен"
+        prefix_display = prefix if prefix else "Отсутствует"
         logging.info(
             f"📦 Префикс '{prefix_display}' — срок хранения: {retention_days} дней, всего образов: {len(group)}"
         )
@@ -67,9 +82,9 @@ def filter_components_to_delete(components):
             age = now_utc - component["last_modified"]
             retention = component["retention"]
 
-            if i < RESERVED_MINIMUM:
+            if prefix is not None and i < RESERVED_MINIMUM and age <= retention:
                 logging.info(
-                    f"⏸ Сохранён (входит в RESERVED_MINIMUM): {name} {version}"
+                    f"⏸ Сохранён (входит в RESERVED_MINIMUM для префикса '{prefix}'): {name} {version}"
                 )
                 continue
 
@@ -79,9 +94,14 @@ def filter_components_to_delete(components):
                 )
                 to_delete.append(component)
             else:
-                logging.info(
-                    f"⏩ Пропущен (срок хранения не вышел): {name} {version} — возраст: {age.days} дн., лимит: {retention.days} дн."
-                )
+                if prefix is None:
+                    logging.info(
+                        f"⏩ Пропущен (без префикса, срок хранения не вышел): {name} {version} — возраст: {age.days} дн., лимит: {retention.days} дн."
+                    )
+                else:
+                    logging.info(
+                        f"⏩ Пропущен (с префиксом '{prefix}', срок хранения не вышел): {name} {version} — возраст: {age.days} дн., лимит: {retention.days} дн."
+                    )
 
     return to_delete
 

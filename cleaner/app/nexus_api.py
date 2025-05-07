@@ -1,11 +1,13 @@
 import requests
 import logging
+from typing import List, Dict
 from config import BASE_URL, USER_NAME, PASSWORD
 
 
-def get_repository_components(repo_name):
+def get_repository_components(repo_name: str) -> List[Dict]:
     components = []
     continuation_token = None
+    url = f"{BASE_URL}service/rest/v1/components"
 
     while True:
         params = {"repository": repo_name}
@@ -14,9 +16,7 @@ def get_repository_components(repo_name):
 
         try:
             response = requests.get(
-                f"{BASE_URL}service/rest/v1/components",
-                auth=(USER_NAME, PASSWORD),
-                params=params,
+                url, auth=(USER_NAME, PASSWORD), params=params, timeout=10
             )
             response.raise_for_status()
             data = response.json()
@@ -24,11 +24,12 @@ def get_repository_components(repo_name):
             logging.error(f"❌ Ошибка при получении компонентов '{repo_name}': {e}")
             return []
 
-        if "items" not in data:
+        items = data.get("items")
+        if not items:
             logging.error("❌ Некорректный формат ответа: нет 'items'")
             return []
 
-        components.extend(data["items"])
+        components.extend(items)
         continuation_token = data.get("continuationToken")
 
         if not continuation_token:
@@ -37,10 +38,12 @@ def get_repository_components(repo_name):
     return components
 
 
-def delete_component(component_id, component_name, component_version):
+def delete_component(
+    component_id: str, component_name: str, component_version: str
+) -> None:
     url = f"{BASE_URL}service/rest/v1/components/{component_id}"
     try:
-        response = requests.delete(url, auth=(USER_NAME, PASSWORD))
+        response = requests.delete(url, auth=(USER_NAME, PASSWORD), timeout=10)
         response.raise_for_status()
         logging.info(
             f"✅ Удалён образ: {component_name} (версия {component_version}, ID: {component_id})"
