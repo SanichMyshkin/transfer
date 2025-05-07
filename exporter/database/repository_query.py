@@ -82,34 +82,14 @@ def get_repository_data() -> list:
         conn = get_db_connection()
         with conn.cursor() as cur:
             query = """
-                WITH unique_policies AS (
-                    SELECT DISTINCT
-                        SPLIT_PART(r.recipe_name, '-', 1) AS format,
-                        cp.name AS policy_name
-                    FROM 
-                        repository r
-                    JOIN 
-                        cleanup_policy cp ON cp.format = SPLIT_PART(r.recipe_name, '-', 1)
-                ),
-                formatted_policies AS (
-                    SELECT 
-                        format,
-                        STRING_AGG(policy_name, ', ') AS policies
-                    FROM 
-                        unique_policies
-                    GROUP BY 
-                        format
-                )
                 SELECT 
                     r.name AS repository_name,
                     SPLIT_PART(r.recipe_name, '-', 1) AS format,
                     SPLIT_PART(r.recipe_name, '-', 2) AS repository_type,
                     r.attributes->'storage'->>'blobStoreName' AS blob_store_name,
-                    COALESCE(fp.policies, '') AS cleanup_policies
+                    COALESCE(r.attributes->'cleanup'->>'policyName', '') AS cleanup_policy
                 FROM 
                     repository r
-                LEFT JOIN 
-                    formatted_policies fp ON SPLIT_PART(r.recipe_name, '-', 1) = fp.format
                 ORDER BY 
                     format, repository_type, repository_name;
             """
