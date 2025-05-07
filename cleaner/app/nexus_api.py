@@ -24,9 +24,13 @@ def get_repository_components(repo_name: str) -> List[Dict]:
             logging.error(f"❌ Ошибка при получении компонентов '{repo_name}': {e}")
             return []
 
-        items = data.get("items")
+        items = data.get("items", None)
+        if items is None:
+            logging.error("❌ Некорректный формат ответа: отсутствует поле 'items'")
+            return []
+
         if not items:
-            logging.error("❌ Некорректный формат ответа: нет 'items'")
+            logging.info(f"ℹ️  В репозитории '{repo_name}' нет компонентов для обработки")
             return []
 
         components.extend(items)
