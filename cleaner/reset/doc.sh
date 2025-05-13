@@ -1,57 +1,81 @@
 #!/bin/bash
 
+set -e
+
 # === НАСТРОЙКИ ===
-SOURCE_IMAGE="registry.access.redhat.com/ubi8/ubi"
-HELLO_IMAGE="hello-world"
-NGINX_IMAGE="nginx"
 NEXUS_REGISTRY="sanich.space:8086"
-REPOSITORY="docker"
-TARGET_IMAGE="$NEXUS_REGISTRY/$REPOSITORY/ubi"
-HELLO_TARGET_IMAGE="$NEXUS_REGISTRY/$REPOSITORY/hello-world"
-NGINX_TARGET_IMAGE="$NEXUS_REGISTRY/$REPOSITORY/nginx"
+
+REPO_DOCKER="docker"    # с вложенной папкой docker/
+REPO_ROOT=""            # корень репозитория
+
+NGINX_IMAGE="nginx"
+HELLO_IMAGE="hello-world"
 
 # === СКАЧИВАЕМ ОБРАЗЫ ===
-echo "Скачиваем образ $SOURCE_IMAGE..."
-docker pull $SOURCE_IMAGE
+echo "Скачиваем образ $NGINX_IMAGE..."
+docker pull $NGINX_IMAGE
 
 echo "Скачиваем образ $HELLO_IMAGE..."
 docker pull $HELLO_IMAGE
 
-echo "Скачиваем образ $NGINX_IMAGE..."
-docker pull $NGINX_IMAGE
+# === ОБРАЗЫ ДЛЯ ТЕСТА ===
 
-# === ТЕГИ И PUSH ДЛЯ UBI ===
-for env in dev test master release; do
-  for i in {1..5}; do
-    TAG="${env}-ubi.v${i}"
-    echo "Создаём и пушим тег $TAG..."
-    docker tag $SOURCE_IMAGE $TARGET_IMAGE:$TAG
-    docker push $TARGET_IMAGE:$TAG
+# Вложенные пути (в docker/)
+declare -A DOCKER_IMAGES=(
+  ["nginx"]=$NGINX_IMAGE
+  ["hello"]=$HELLO_IMAGE
+  ["dev/nginx"]=$NGINX_IMAGE
+  ["release/hello"]=$HELLO_IMAGE
+  ["dev/europe/nginx"]=$NGINX_IMAGE
+  ["test/asia/hello"]=$HELLO_IMAGE
+)
+
+# Путь без docker/ — пушим в корень
+declare -A ROOT_IMAGES=(
+  ["nginx"]=$NGINX_IMAGE
+  ["hello-world"]=$HELLO_IMAGE
+)
+
+# Префиксы и количество тегов
+PREFIXES=("dev" "test" "release" "custom" "")
+TAGS_COUNT=3
+
+# === PUSH ФУНКЦИЯ ===
+function push_image_tags() {
+  local image_name=$1
+  local base_image=$2
+  local repo=$3
+
+  for prefix in "${PREFIXES[@]}"; do
+    for i in $(seq 1 $TAGS_COUNT); do
+      if [ -n "$prefix" ]; then
+        TAG="${prefix}.v${i}"
+      else
+        TAG="v${i}"
+      fi
+
+      # Если репо задано (например, docker), включаем его в путь
+      if [ -n "$repo" ]; then
+        FULL_IMAGE="$NEXUS_REGISTRY/$repo/$image_name:$TAG"
+      else
+        FULL_IMAGE="$NEXUS_REGISTRY/$image_name:$TAG"
+      fi
+
+      echo "🏷️  Тегируем $base_image как $FULL_IMAGE"
+      docker tag $base_image $FULL_IMAGE
+
+      echo "📤 Пушим $FULL_IMAGE"
+      docker push $FULL_IMAGE
+    done
   done
+}
+
+# === PUSH В docker/ ===
+for name in "${!DOCKER_IMAGES[@]}"; do
+  push_image_tags "$name" "${DOCKER_IMAGES[$name]}" "$REPO_DOCKER"
 done
 
-# === ТЕГИ И PUSH ДЛЯ HELLO-WORLD ===
-for i in {1..5}; do
-  TAG="release-hello-world.v${i}"
-  echo "Создаём и пушим тег $TAG..."
-  docker tag $HELLO_IMAGE $HELLO_TARGET_IMAGE:$TAG
-  docker push $HELLO_TARGET_IMAGE:$TAG
-
-  TAG_NO_PREFIX="hello-world.v${i}"
-  echo "Создаём и пушим тег $TAG_NO_PREFIX..."
-  docker tag $HELLO_IMAGE $HELLO_TARGET_IMAGE:$TAG_NO_PREFIX
-  docker push $HELLO_TARGET_IMAGE:$TAG_NO_PREFIX
-done
-
-# === ТЕГИ И PUSH ДЛЯ NGINX ===
-for i in {1..5}; do
-  TAG="release-nginx.v${i}"
-  echo "Создаём и пушим тег $TAG..."
-  docker tag $NGINX_IMAGE $NGINX_TARGET_IMAGE:$TAG
-  docker push $NGINX_TARGET_IMAGE:$TAG
-
-  TAG_NO_PREFIX="nginx.v${i}"
-  echo "Создаём и пушим тег $TAG_NO_PREFIX..."
-  docker tag $NGINX_IMAGE $NGINX_TARGET_IMAGE:$TAG_NO_PREFIX
-  docker push $NGINX_TARGET_IMAGE:$TAG_NO_PREFIX
+# === PUSH В КОРЕНЬ РЕПОЗИТОРИЯ ===
+for name in "${!ROOT_IMAGES[@]}"; do
+  push_image_tags "$name" "${ROOT_IMAGES[$name]}" "$REPO_ROOT"
 done

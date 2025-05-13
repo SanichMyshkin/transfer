@@ -1,3 +1,5 @@
+# cleaner_default.py
+
 import os
 import logging
 import requests
@@ -14,7 +16,7 @@ BASE_URL = os.getenv("BASE_URL")
 DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
 
 os.makedirs("logs", exist_ok=True)
-log_filename = "logs/cleaner.log"
+log_filename = "logs/cleaner_default.log"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -26,12 +28,8 @@ logging.basicConfig(
 
 REPO_NAME = ["test1"]
 
-PREFIX_RULES = {
-    "dev": {"retention": timedelta(days=0), "reserved": 2},
-    "test": {"retention": timedelta(days=0), "reserved": 2},
-    "release": {"retention": timedelta(days=0), "reserved": 1},
-    "master": {"retention": timedelta(days=0), "reserved": 1},
-}
+DEFAULT_RETENTION = timedelta(days=30)
+DEFAULT_RESERVED = 1
 
 
 def get_repository_components(repo_name):
@@ -45,7 +43,9 @@ def get_repository_components(repo_name):
             params["continuationToken"] = continuation_token
 
         try:
-            response = requests.get(url, auth=(USER_NAME, PASSWORD), params=params, timeout=10)
+            response = requests.get(
+                url, auth=(USER_NAME, PASSWORD), params=params, timeout=10
+            )
             response.raise_for_status()
             data = response.json()
         except requests.exceptions.RequestException as e:
@@ -88,15 +88,7 @@ def delete_component(component_id, component_name, component_version):
         logging.error(f"❌ Ошибка при удалении компонента {component_id}: {e}")
 
 
-def get_prefix_rules(version):
-    version_lower = version.lower()
-    for prefix, rules in PREFIX_RULES.items():
-        if version_lower.startswith(prefix.lower()):
-            return prefix, rules["retention"], rules["reserved"]
-    return None, None, None  # Сигнализируем, что префикс не найден
-
-
-def filter_components_to_delete(components):
+def filter_default_components_to_delete(components):
     now_utc = datetime.now(timezone.utc) + timedelta(seconds=1)
     grouped = defaultdict(list)
 
@@ -107,7 +99,9 @@ def filter_components_to_delete(components):
         if not assets or not version or not name:
             continue
 
-        last_modified_strs = [a.get("lastModified") for a in assets if a.get("lastModified")]
+        last_modified_strs = [
+            a.get("lastModified") for a in assets if a.get("lastModified")
+        ]
         if not last_modified_strs:
             continue
 
@@ -116,39 +110,38 @@ def filter_components_to_delete(components):
         except Exception:
             continue
 
-        prefix, retention, reserved = get_prefix_rules(version)
-        if prefix is None:
-            continue  # Пропускаем компоненты без префикса
+        # Отфильтровываем компоненты без подходящего префикса
+        if any(
+            version.lower().startswith(p) for p in ["dev", "test", "release", "master"]
+        ):
+            continue
 
-        component.update({
-            "last_modified": last_modified,
-            "retention": retention,
-            "reserved": reserved,
-            "prefix": prefix,
-        })
+        component.update(
+            {
+                "last_modified": last_modified,
+            }
+        )
 
-        grouped[(name, prefix)].append(component)
+        grouped[name].append(component)
 
     to_delete = []
 
-    for (name, prefix), group in grouped.items():
+    for name, group in grouped.items():
         sorted_group = sorted(group, key=lambda x: x["last_modified"], reverse=True)
 
         for i, component in enumerate(sorted_group):
             version = component.get("version", "Без версии")
             age = now_utc - component["last_modified"]
-            retention = component["retention"]
-            reserved = component["reserved"]
 
-            if i < reserved:
+            if i < DEFAULT_RESERVED:
                 logging.info(
-                    f"⏸ Сохранён (резерв {reserved}): {name}:{version} ({prefix})"
+                    f"⏸ Сохранён (резерв {DEFAULT_RESERVED}): {name}:{version}"
                 )
                 continue
 
-            if age > retention:
+            if age > DEFAULT_RETENTION:
                 logging.info(
-                    f"🗑 К удалению: {name}:{version} (возраст: {age.days} дн., лимит: {retention.days} дн.)"
+                    f"🗑 К удалению: {name}:{version} (возраст: {age.days} дн., лимит: {DEFAULT_RETENTION.days} дн.)"
                 )
                 to_delete.append(component)
 
@@ -161,14 +154,20 @@ def clear_repository(repo_name):
     if not components:
         return
 
-    to_delete = filter_components_to_delete(components)
+    to_delete = filter_default_components_to_delete(components)
     if not to_delete:
         logging.info(f"✅ Нет компонентов для удаления в репозитории '{repo_name}'")
         return
 
-    logging.info(f"🚮 Удаляется {len(to_delete)} компонент(ов) из репозитория '{repo_name}'")
+    logging.info(
+        f"🚮 Удаляется {len(to_delete)} компонент(ов) из репозитория '{repo_name}'"
+    )
     for component in to_delete:
-        delete_component(component["id"], component.get("name", "Без имени"), component.get("version", "Без версии"))
+        delete_component(
+            component["id"],
+            component.get("name", "Без имени"),
+            component.get("version", "Без версии"),
+        )
 
 
 def main():
