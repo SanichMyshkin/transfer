@@ -55,7 +55,7 @@ def delete_component(component):
     Удалить компонент (артефакт) по его ID.
     """
     component_id = component.get("id")
-    url = f"{NEXUS_URL}/service/rest/v1/components/{component_id}"
+    url = f"{NEXUS_URL}service/rest/v1/components/{component_id}"
     resp = requests.delete(url, auth=(USER_NAME, PASSWORD))
     if resp.status_code == 204:
         logging.info(
@@ -81,7 +81,7 @@ def clear_repository(repo_name):
 
 
 def main():
-    repo_name = "trash"  # Имя репозитория, который нужно очистить
+    repo_name = "test1"  # Имя репозитория, который нужно очистить
     logging.info(f"🚮 Начинаю очистку репозитория: {repo_name}")
     clear_repository(repo_name)
 

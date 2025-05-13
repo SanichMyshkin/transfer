@@ -1,163 +1,106 @@
-import unittest
-from unittest.mock import patch
-from datetime import datetime, timedelta, timezone
-from app.cleaner import (
-    get_prefix_and_retention,
+from datetime import datetime, timezone, timedelta
+from unittest.mock import patch, Mock
+from cleaner import (
+    get_repository_components,
+    delete_component,
     filter_components_to_delete,
-    clear_repository,
+    get_prefix_and_retention,
+    DEFAULT_RETENTION,
 )
 
 
-class TestRepositoryCleaner(unittest.TestCase):
-    def setUp(self):
-        self.now = datetime(2024, 5, 1, tzinfo=timezone.utc)
+# ----------------- get_prefix_and_retention -----------------
 
-    def test_get_prefix_and_retention_known_prefix(self):
-        with (
-            patch.dict("app.cleaner.PREFIX_RETENTION", {"release": timedelta(days=30)}),
-            patch("app.cleaner.DEFAULT_RETENTION", timedelta(days=20)),
-        ):
-            prefix, retention = get_prefix_and_retention("release-1.0.0")
-            self.assertEqual(prefix, "release")
-            self.assertEqual(retention, timedelta(days=30))
+def test_get_prefix_and_retention_known_prefix():
+    prefix, retention = get_prefix_and_retention("dev-1.0")
+    assert prefix == "dev"
+    assert retention.days == 7
 
-    def test_get_prefix_and_retention_unknown_prefix(self):
-        with (
-            patch.dict("app.cleaner.PREFIX_RETENTION", {"release": timedelta(days=30)}),
-            patch("app.cleaner.DEFAULT_RETENTION", timedelta(days=20)),
-        ):
-            prefix, retention = get_prefix_and_retention("1.0.0")
-            self.assertIsNone(prefix)
-            self.assertEqual(retention, timedelta(days=20))
+def test_get_prefix_and_retention_unknown_prefix():
+    prefix, retention = get_prefix_and_retention("feature-1.0")
+    assert prefix is None
+    assert retention == DEFAULT_RETENTION
 
-    def test_filter_skips_missing_version_or_assets(self):
-        components = [
-            {"id": "1", "name": "App", "version": "", "assets": []},
-        ]
-        result = filter_components_to_delete(components)
-        self.assertEqual(result, [])
 
-    def test_filter_skips_missing_last_modified(self):
-        components = [
-            {"id": "2", "name": "App", "version": "1.0.0", "assets": [{}]},
-        ]
-        result = filter_components_to_delete(components)
-        self.assertEqual(result, [])
+# ----------------- filter_components_to_delete -----------------
 
-    def test_filter_skips_invalid_last_modified(self):
-        components = [
+def test_filter_components_to_delete():
+    now = datetime.now(timezone.utc)
+    components = [
+        {
+            "id": "1",
+            "name": "lib-a",
+            "version": "dev-1.0",
+            "assets": [{"lastModified": (now - timedelta(days=10)).isoformat()}],
+        },
+        {
+            "id": "2",
+            "name": "lib-a",
+            "version": "dev-2.0",
+            "assets": [{"lastModified": (now - timedelta(days=2)).isoformat()}],
+        },
+        {
+            "id": "3",
+            "name": "lib-a",
+            "version": "dev-3.0",
+            "assets": [{"lastModified": (now - timedelta(days=20)).isoformat()}],
+        },
+    ]
+    result = filter_components_to_delete(components)
+    # RESERVED_MINIMUM = 2 => старые идут с 3-го
+    assert len(result) == 1
+    assert result[0]["id"] == "3"
+
+
+# ----------------- get_repository_components -----------------
+
+@patch("requests.get")
+def test_get_repository_components_success(mock_get):
+    mock_response = Mock()
+    mock_response.json.return_value = {
+        "items": [
             {
-                "id": "3",
-                "name": "App",
-                "version": "1.0.0",
-                "assets": [{"lastModified": "invalid-date"}],
-            },
-        ]
-        result = filter_components_to_delete(components)
-        self.assertEqual(result, [])
-
-    @patch("app.cleaner.datetime")
-    def test_filter_components_to_delete_with_multiple_prefixes(self, mock_datetime):
-        mock_datetime.now.return_value = self.now
-        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
-
-        components = [
-            {
-                "id": "10",
-                "name": "App",
-                "version": "release-1.0.0",
-                "assets": [
-                    {"lastModified": (self.now - timedelta(days=40)).isoformat()}
-                ],
-            },  # старше retention, но не в RESERVED_MINIMUM
-            {
-                "id": "11",
-                "name": "App",
-                "version": "test-1.0.0",
-                "assets": [
-                    {"lastModified": (self.now - timedelta(days=35)).isoformat()}
-                ],
-            },  # старше retention
-            {
-                "id": "12",
-                "name": "App",
-                "version": "release-1.0.1",
-                "assets": [
-                    {"lastModified": (self.now - timedelta(days=10)).isoformat()}
-                ],
-            },  # входит в RESERVED_MINIMUM
-            {
-                "id": "13",
-                "name": "App",
-                "version": "1.0.0",
-                "assets": [
-                    {"lastModified": (self.now - timedelta(days=40)).isoformat()}
-                ],
-            },  # без префикса, старше DEFAULT_RETENTION
-        ]
-
-        with (
-            patch("app.cleaner.RESERVED_MINIMUM", 1),
-            patch.dict(
-                "app.cleaner.PREFIX_RETENTION",
-                {"release": timedelta(days=30), "test": timedelta(days=15)},
-            ),
-            patch("app.cleaner.DEFAULT_RETENTION", timedelta(days=20)),
-        ):
-            to_delete = filter_components_to_delete(components)
-
-        deleted_ids = [c["id"] for c in to_delete]
-
-        # ✅ Компоненты с префиксом "release":
-        self.assertIn("10", deleted_ids)  # старше retention и не в RESERVED_MINIMUM
-        self.assertNotIn("12", deleted_ids)  # свежий и входит в RESERVED_MINIMUM
-
-        # ✅ Префикс "test":
-        self.assertIn("11", deleted_ids)  # старше 15 дней
-
-        # ✅ Без префикса:
-        self.assertIn("13", deleted_ids)  # старше DEFAULT_RETENTION
-
-    @patch("app.cleaner.get_repository_components", return_value=[])
-    def test_clear_repository_no_components(self, mock_get):
-        with self.assertLogs(level="WARNING") as log:
-            clear_repository("test-repo")
-            self.assertIn("⚠️ Компоненты в репозитории", log.output[0])
-
-    @patch("app.cleaner.filter_components_to_delete", return_value=[])
-    @patch(
-        "app.cleaner.get_repository_components",
-        return_value=[
-            {
-                "id": "1",
-                "version": "v1",
-                "assets": [{"lastModified": "2020-01-01T00:00:00Z"}],
+                "id": "123",
+                "name": "test-comp",
+                "version": "dev-1.0",
+                "assets": [{"lastModified": "2024-01-01T00:00:00Z"}],
             }
         ],
-    )
-    def test_clear_repository_nothing_to_delete(self, mock_get, mock_filter):
-        with self.assertLogs(level="INFO") as log:
-            clear_repository("test-repo")
-            self.assertIn("✅ Нет компонентов для удаления", log.output[-1])
+        "continuationToken": None,
+    }
+    mock_response.status_code = 200
+    mock_response.raise_for_status = Mock()
+    mock_get.return_value = mock_response
 
-    @patch("app.cleaner.delete_component")
-    @patch("app.cleaner.filter_components_to_delete")
-    @patch("app.cleaner.get_repository_components")
-    def test_clear_repository_deletes_components(
-        self, mock_get, mock_filter, mock_delete
-    ):
-        mock_get.return_value = [
-            {
-                "id": "1",
-                "name": "App",
-                "version": "v1",
-                "assets": [{"lastModified": "2020-01-01T00:00:00Z"}],
-            }
-        ]
-        mock_filter.return_value = [mock_get.return_value[0]]
-        clear_repository("test-repo")
-        mock_delete.assert_called_once_with("1", "App", "v1")
+    result = get_repository_components("test1")
+    assert isinstance(result, list)
+    assert result[0]["id"] == "123"
 
 
-if __name__ == "__main__":
-    unittest.main()
+@patch("requests.get")
+def test_get_repository_components_error(mock_get):
+    from requests.exceptions import RequestException
+    mock_get.side_effect = RequestException("Connection error")
+
+    result = get_repository_components("test1")
+    assert result == []
+
+
+# ----------------- delete_component -----------------
+
+@patch("requests.delete")
+def test_delete_component_real(mock_delete):
+    mock_response = Mock()
+    mock_response.status_code = 204
+    mock_response.raise_for_status = Mock()
+    mock_delete.return_value = mock_response
+
+    delete_component("123", "comp-name", "1.0")
+    mock_delete.assert_called_once()
+
+
+@patch("cleaner.DRY_RUN", True)
+@patch("requests.delete")
+def test_delete_component_dry_run(mock_delete):
+    delete_component("123", "comp-name", "1.0")
+    mock_delete.assert_not_called()

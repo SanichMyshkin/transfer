@@ -11,10 +11,11 @@ load_dotenv()
 USER_NAME = os.getenv("USER_NAME")
 PASSWORD = os.getenv("PASSWORD")
 BASE_URL = os.getenv("BASE_URL")
+DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
 
-# Настройка логирования
+# Настройка логирования (в один файл)
 os.makedirs("logs", exist_ok=True)
-log_filename = datetime.now().strftime("logs/cleaner_%Y-%m-%d.log")
+log_filename = "logs/cleaner.log"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -25,13 +26,14 @@ logging.basicConfig(
 )
 
 # Конфигурация
-REPO_NAME = "docket2"  # <-- укажи тут нужное имя репозитория
+REPO_NAME = ["test1"]
 PREFIX_RETENTION = {
     "dev": timedelta(days=7),
     "test": timedelta(days=14),
     "release": timedelta(days=90),
     "master": timedelta(days=180),
 }
+
 DEFAULT_RETENTION = timedelta(days=30)
 RESERVED_MINIMUM = 2
 
@@ -75,6 +77,12 @@ def get_repository_components(repo_name):
 
 
 def delete_component(component_id, component_name, component_version):
+    if DRY_RUN:
+        logging.info(
+            f"🧪 [DRY_RUN] Пропущено удаление: {component_name} (версия {component_version}, ID: {component_id})"
+        )
+        return
+
     url = f"{BASE_URL}service/rest/v1/components/{component_id}"
     try:
         response = requests.delete(url, auth=(USER_NAME, PASSWORD), timeout=10)
@@ -121,35 +129,37 @@ def filter_components_to_delete(components):
             continue
 
         prefix, retention = get_prefix_and_retention(version)
+        name = component.get("name", "Без имени")
         component.update(
             {
                 "last_modified": last_modified,
                 "retention": retention,
                 "prefix": prefix,
+                "name": name,
                 "has_prefix": prefix is not None,
             }
         )
-        grouped.setdefault(prefix, []).append(component)
+        group_key = (prefix, name)
+        grouped.setdefault(group_key, []).append(component)
 
     to_delete = []
 
-    for prefix, group in grouped.items():
+    for (prefix, name), group in grouped.items():
         sorted_group = sorted(group, key=lambda x: x["last_modified"], reverse=True)
         retention_days = group[0]["retention"].days
         prefix_display = prefix if prefix else "Отсутствует"
         logging.info(
-            f"📦 Префикс '{prefix_display}' — срок хранения: {retention_days} дней, всего образов: {len(group)}"
+            f"📦 Префикс '{prefix_display}', имя '{name}' — срок хранения: {retention_days} дней, всего образов: {len(group)}"
         )
 
         for i, component in enumerate(sorted_group):
-            name = component.get("name", "Без имени")
             version = component.get("version", "Без версии")
             age = now_utc - component["last_modified"]
             retention = component["retention"]
 
-            if prefix is not None and i < RESERVED_MINIMUM and age <= retention:
+            if i < RESERVED_MINIMUM:
                 logging.info(
-                    f"⏸ Сохранён (входит в RESERVED_MINIMUM для префикса '{prefix}'): {name} {version}"
+                    f"⏸ Сохранён (входит в RESERVED_MINIMUM для имени '{name}', префикс '{prefix_display}'): {name} {version}"
                 )
                 continue
 
@@ -159,14 +169,9 @@ def filter_components_to_delete(components):
                 )
                 to_delete.append(component)
             else:
-                if prefix is None:
-                    logging.info(
-                        f"⏩ Пропущен (без префикса, срок хранения не вышел): {name} {version} — возраст: {age.days} дн., лимит: {retention.days} дн."
-                    )
-                else:
-                    logging.info(
-                        f"⏩ Пропущен (с префиксом '{prefix}', срок хранения не вышел): {name} {version} — возраст: {age.days} дн., лимит: {retention.days} дн."
-                    )
+                logging.info(
+                    f"⏩ Пропущен (срок хранения не вышел): {name} {version} — возраст: {age.days} дн., лимит: {retention.days} дн."
+                )
 
     return to_delete
 
@@ -180,7 +185,6 @@ def clear_repository(repo_name):
         return
 
     if not components:
-        # Уже залогировано в get_repository_components
         return
 
     to_delete = filter_components_to_delete(components)
@@ -201,7 +205,7 @@ def clear_repository(repo_name):
 
 
 def main():
-    clear_repository(REPO_NAME)
+    list(map(clear_repository, REPO_NAME))
 
 
 if __name__ == "__main__":
