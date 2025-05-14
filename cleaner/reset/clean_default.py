@@ -28,7 +28,7 @@ logging.basicConfig(
 
 REPO_NAME = ["test1"]
 
-DEFAULT_RETENTION = timedelta(days=30)
+DEFAULT_RETENTION = timedelta(days=0)
 DEFAULT_RESERVED = 1
 
 
@@ -96,33 +96,34 @@ def filter_default_components_to_delete(components):
         version = component.get("version", "")
         name = component.get("name", "")
         assets = component.get("assets", [])
-        if not assets or not version or not name:
+
+        if not assets:
+            logging.info(f"⚠️ Пропущен компонент без assets: {name}:{version}")
             continue
 
-        last_modified_strs = [
-            a.get("lastModified") for a in assets if a.get("lastModified")
-        ]
+        if not version or not name:
+            logging.info(f"⚠️ Пропущен компонент с отсутствующим именем или версией: {component}")
+            continue
+
+        last_modified_strs = [a.get("lastModified") for a in assets if a.get("lastModified")]
         if not last_modified_strs:
+            logging.info(f"⚠️ Пропущен компонент без даты lastModified: {name}:{version}")
             continue
 
         try:
             last_modified = max(parse(s) for s in last_modified_strs)
-        except Exception:
+        except Exception as e:
+            logging.warning(f"⚠️ Ошибка при парсинге даты для {name}:{version}: {e}")
             continue
 
-        # Отфильтровываем компоненты без подходящего префикса
-        if any(
-            version.lower().startswith(p) for p in ["dev", "test", "release", "master"]
-        ):
-            continue
-
-        component.update(
-            {
-                "last_modified": last_modified,
-            }
-        )
-
-        grouped[name].append(component)
+        # Пропуск по префиксу
+        for prefix in ["dev", "test", "release", "master", "latest"]:
+            if version.lower().startswith(prefix):
+                logging.info(f"🔒 Пропущен по префиксу '{prefix}': {name}:{version}")
+                break
+        else:
+            component.update({"last_modified": last_modified})
+            grouped[name].append(component)
 
     to_delete = []
 
@@ -135,7 +136,7 @@ def filter_default_components_to_delete(components):
 
             if i < DEFAULT_RESERVED:
                 logging.info(
-                    f"⏸ Сохранён (резерв {DEFAULT_RESERVED}): {name}:{version}"
+                    f"⏸ Сохранён как резерв {i+1}/{DEFAULT_RESERVED}: {name}:{version} (возраст: {age.days} дн.)"
                 )
                 continue
 
@@ -144,8 +145,14 @@ def filter_default_components_to_delete(components):
                     f"🗑 К удалению: {name}:{version} (возраст: {age.days} дн., лимит: {DEFAULT_RETENTION.days} дн.)"
                 )
                 to_delete.append(component)
+            else:
+                logging.info(
+                    f"⏸ Сохранён по сроку хранения: {name}:{version} (возраст: {age.days} дн. ≤ лимит: {DEFAULT_RETENTION.days} дн.)"
+                )
 
     return to_delete
+
+
 
 
 def clear_repository(repo_name):

@@ -6,6 +6,7 @@ HELLO_IMAGE="hello-world"
 NGINX_IMAGE="nginx"
 NEXUS_REGISTRY="sanich.space:8086"
 REPOSITORY="docker"
+
 TARGET_IMAGE="$NEXUS_REGISTRY/$REPOSITORY/ubi"
 HELLO_TARGET_IMAGE="$NEXUS_REGISTRY/$REPOSITORY/hello-world"
 NGINX_TARGET_IMAGE="$NEXUS_REGISTRY/$REPOSITORY/nginx"
@@ -30,6 +31,16 @@ for env in dev test master release; do
   done
 done
 
+# Добавляем и пушим latest тег для UBI
+echo "Создаём и пушим тег latest для UBI..."
+docker tag $SOURCE_IMAGE $TARGET_IMAGE:latest
+docker push $TARGET_IMAGE:latest
+
+# Добавляем и пушим dev-latest тег для UBI
+echo "Создаём и пушим тег dev-latest для UBI..."
+docker tag $SOURCE_IMAGE $TARGET_IMAGE:dev-latest
+docker push $TARGET_IMAGE:dev-latest
+
 # === ТЕГИ И PUSH ДЛЯ HELLO-WORLD ===
 for i in {1..5}; do
   TAG="release.v${i}"
@@ -43,6 +54,16 @@ for i in {1..5}; do
   docker push $HELLO_TARGET_IMAGE:$TAG_NO_PREFIX
 done
 
+# Добавляем и пушим latest тег для hello-world
+echo "Создаём и пушим тег latest для hello-world..."
+docker tag $HELLO_IMAGE $HELLO_TARGET_IMAGE:latest
+docker push $HELLO_TARGET_IMAGE:latest
+
+# Добавляем и пушим dev-latest тег для hello-world
+echo "Создаём и пушим тег dev-latest для hello-world..."
+docker tag $HELLO_IMAGE $HELLO_TARGET_IMAGE:dev-latest
+docker push $HELLO_TARGET_IMAGE:dev-latest
+
 # === ТЕГИ И PUSH ДЛЯ NGINX ===
 for i in {1..5}; do
   TAG="release.v${i}"
@@ -55,3 +76,13 @@ for i in {1..5}; do
   docker tag $NGINX_IMAGE $NGINX_TARGET_IMAGE:$TAG_NO_PREFIX
   docker push $NGINX_TARGET_IMAGE:$TAG_NO_PREFIX
 done
+
+# Добавляем и пушим latest тег для nginx
+echo "Создаём и пушим тег latest для nginx..."
+docker tag $NGINX_IMAGE $NGINX_TARGET_IMAGE:latest
+docker push $NGINX_TARGET_IMAGE:latest
+
+# Добавляем и пушим dev-latest тег для nginx
+echo "Создаём и пушим тег dev-latest для nginx..."
+docker tag $NGINX_IMAGE $NGINX_TARGET_IMAGE:dev-latest
+docker push $NGINX_TARGET_IMAGE:dev-latest

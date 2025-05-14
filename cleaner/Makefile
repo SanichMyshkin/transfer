@@ -3,4 +3,4 @@ re:
 	bash reset/doc.sh
 
 test:
-	pytest --cov=cleaner --cov-report=term-missing tests/
+	pytest --cov=cleaner --cov=reset.clean_default --cov-report=term-missing tests/
