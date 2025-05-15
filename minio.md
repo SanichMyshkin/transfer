@@ -157,4 +157,37 @@ root@sanich ~/transfer/test-maven-artifact main*
 
 > Рестарт нексуса никчему не
 
+### Admin - Delete blob store temporary files
+```bash
+root@sanich ~/transfer main
+❯ mc du myminio/mv2
+4.6KiB  19 objects      mv2
 
+root@sanich ~/transfer main*
+❯ mc du myminio/helm
+4.7KiB  5 objects       helm
+```
+
+### Admin - Cleanup unused asset blobs
+
+```bash
+root@sanich ~/transfer main*
+❯ mc du myminio/mv2
+40B     1 object        mv2
+
+root@sanich ~/transfer main*
+❯ mc du myminio/helm
+372B    3 objects       helm
+```
+
+### Admin - Compact blob store
+
+```bash
+root@sanich ~/transfer main*
+❯ mc du myminio/mv2
+40B     1 object        mv2
+
+root@sanich ~/transfer main*
+❯ mc du myminio/helm
+372B    3 objects       helm
+```
