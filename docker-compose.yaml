@@ -80,6 +80,7 @@ services:
       - "8082:8082"
       - "8085:8085"
       - "8087:8087"
+      - "8088:8088"
     environment:
       - INSTALL4J_ADD_VM_PARAMS=-Xms1024m -Xmx2048m -XX:MaxDirectMemorySize=2g -Djava.util.prefs.userRoot=/nexus-data
     networks:

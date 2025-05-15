@@ -9,6 +9,10 @@ root@sanich ~/transfer main
 root@sanich ~/transfer main
 ❯ mc du myminio/mv2 
 0B      0 objects       mv2
+
+root@sanich ~/transfer main
+❯ mc du myminio/dckr                   
+0B      0 objects       dckr
 ```
 
 ### ВАЖНО:
@@ -24,6 +28,10 @@ root@sanich ~/transfer main
 root@sanich ~/transfer main
 ❯ mc du myminio/mv2
 40B     1 object        mv2
+
+root@sanich ~/transfer main
+❯ mc du myminio/dckr
+40B     1 object        dckr
 ```
 
 # После создания Репозиториев объем не поменялся
@@ -144,6 +152,28 @@ root@sanich ~/transfer/test-maven-artifact main*
 4.6KiB  19 objects      mv2
 ```
 
+### Тестовый образ docker
+
+```bash
+root@sanich ~/transfer main*
+❯ docker push sanich.space:8088/repository/dckr/nginx:latest
+
+The push refers to repository [sanich.space:8088/repository/dckr/nginx]
+8030dd26ec5d: Pushed 
+d84233433437: Pushed 
+f8455d4eb3ff: Pushed 
+286733b13b0f: Pushed 
+46a24b5c31d8: Pushed 
+84accda66bf0: Pushed 
+6c4c763d22d0: Pushed 
+latest: digest: sha256:056c8ad1921514a2fc810a792b5bd18a02d003a99d6b716508bf11bc98c413c3 size: 1778
+
+root@sanich ~/transfer main* 10s
+❯ mc du myminio/dckr                                               
+70MiB   21 objects      dckr
+
+```
+
 ### Удалил через UI папки с артефактами
 
 ```bash
@@ -155,7 +185,20 @@ root@sanich ~/transfer/test-maven-artifact main*
 root@sanich ~/transfer/test-maven-artifact main*
 ❯ mc du myminio/mv2 
 4.6KiB  19 objects      mv2
+
+root@sanich ~/transfer main*
+❯ mc du myminio/dckr
+70MiB   21 objects      dckr
 ```
+
+
+### Docker - Delete unused manifests and images
+```bash
+root@sanich ~/transfer main*
+❯ mc du myminio/dckr
+70MiB   21 objects      dckr
+```
+
 
 ### Admin - Delete blob store temporary files
 ```bash
@@ -166,6 +209,10 @@ root@sanich ~/transfer main
 root@sanich ~/transfer main*
 ❯ mc du myminio/helm
 4.7KiB  5 objects       helm
+
+root@sanich ~/transfer main*
+❯ mc du myminio/dckr
+70MiB   21 objects      dckr
 ```
 
 ### Admin - Cleanup unused asset blobs
@@ -178,6 +225,10 @@ root@sanich ~/transfer main*
 root@sanich ~/transfer main*
 ❯ mc du myminio/helm
 372B    3 objects       helm
+
+root@sanich ~/transfer main*
+❯ mc du myminio/dckr
+70MiB   21 objects      dckr
 ```
 
 ### Admin - Compact blob store
