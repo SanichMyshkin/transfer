@@ -1,3 +1,5 @@
+
+
 ### Cоздание Бакетов
 ```bash
 root@sanich ~/transfer main
@@ -8,6 +10,10 @@ root@sanich ~/transfer main
 ❯ mc du myminio/mv2 
 0B      0 objects       mv2
 ```
+
+### ВАЖНО:
+  Значение *Expliration Days* равное -1 отключает удаление из s3 (то есть файлы будут висеть мертвым)
+![](migration/minio1.png)
 
 ### После создание блоба в Nexus
 ```bash
@@ -150,12 +156,6 @@ root@sanich ~/transfer/test-maven-artifact main*
 ❯ mc du myminio/mv2 
 4.6KiB  19 objects      mv2
 ```
-
-> После удаления из нексуса(через UI) в бакетах остались файлы, так же их размер не изменился
-
-> Таски дело не поменяли на стороне бакетов, однако сами блобы вроде как изменили размер 
-
-> Рестарт нексуса никчему не
 
 ### Admin - Delete blob store temporary files
 ```bash
