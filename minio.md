@@ -224,11 +224,11 @@ root@sanich ~/transfer main*
 
 root@sanich ~/transfer main*
 ❯ mc du myminio/helm
-372B    3 objects       helm
+40B     1 object        helm
 
-root@sanich ~/transfer main*
+root@sanich ~/transfer main
 ❯ mc du myminio/dckr
-70MiB   21 objects      dckr
+40B     1 object        dckr
 ```
 
 ### Admin - Compact blob store
@@ -238,7 +238,10 @@ root@sanich ~/transfer main*
 ❯ mc du myminio/mv2
 40B     1 object        mv2
 
-root@sanich ~/transfer main*
 ❯ mc du myminio/helm
-372B    3 objects       helm
+40B     1 object        helm
+
+root@sanich ~/transfer main
+❯ mc du myminio/dckr
+40B     1 object        dckr
 ```
