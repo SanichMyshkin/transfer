@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from dateutil.parser import parse
 from dotenv import load_dotenv
 from collections import defaultdict
+from logging.handlers import TimedRotatingFileHandler
 
 load_dotenv()
 
@@ -26,13 +27,17 @@ PREFIX_RULES = {
 MAX_RETENTION = timedelta(days=180)
 
 
-os.makedirs("logs", exist_ok=True)
+
 log_filename = "logs/cleaner.log"
+file_handler = TimedRotatingFileHandler(
+    log_filename, when="midnight", interval=1, backupCount=7, encoding="utf-8"
+)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler(log_filename, encoding="utf-8"),
+        file_handler,
         logging.StreamHandler(),
     ],
 )
