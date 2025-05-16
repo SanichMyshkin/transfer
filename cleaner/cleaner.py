@@ -13,6 +13,19 @@ PASSWORD = os.getenv("PASSWORD")
 BASE_URL = os.getenv("BASE_URL")
 DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
 
+REPO_NAME = ["test1"]
+
+
+PREFIX_RULES = {
+    "dev": {"retention": timedelta(days=7), "reserved": 0},
+    "test": {"retention": timedelta(days=14), "reserved": 0},
+    "release": {"retention": timedelta(days=30), "reserved": 1},
+    "master": {"retention": timedelta(days=180), "reserved": 1},
+}
+
+MAX_RETENTION = timedelta(days=180)
+
+
 os.makedirs("logs", exist_ok=True)
 log_filename = "logs/cleaner.log"
 logging.basicConfig(
@@ -23,15 +36,6 @@ logging.basicConfig(
         logging.StreamHandler(),
     ],
 )
-
-REPO_NAME = ["test1"]
-
-PREFIX_RULES = {
-    "dev": {"retention": timedelta(days=7), "reserved": 0},
-    "test": {"retention": timedelta(days=14), "reserved": 0},
-    "release": {"retention": timedelta(days=30), "reserved": 1},
-    "master": {"retention": timedelta(days=180), "reserved": 1},
-}
 
 
 def get_repository_components(repo_name):
@@ -122,7 +126,7 @@ def filter_components_to_delete(components):
 
         prefix, retention, reserved = get_prefix_rules(version)
         if prefix is None:
-            continue  # Пропускаем компоненты без префикса
+            continue
 
         component.update(
             {
@@ -152,6 +156,13 @@ def filter_components_to_delete(components):
                 )
                 continue
 
+            if age > MAX_RETENTION:
+                logging.info(
+                    f"🗑 К удалению (старше {MAX_RETENTION.days} дн.): {name}:{version} (возраст: {age.days} дн.)"
+                )
+                to_delete.append(component)
+                continue
+
             if i < reserved:
                 logging.info(
                     f"📦 Сохранён (резерв {reserved}): {name}:{version} ({prefix})"
@@ -160,7 +171,7 @@ def filter_components_to_delete(components):
 
             if age > retention:
                 logging.info(
-                    f"🗑 К удалению: {name}:{version} (возраст: {age.days} дн., лимит: {retention.days} дн.)"
+                    f"🗑 К удалению по правилу {prefix}: {name}:{version} (возраст: {age.days} дн., лимит: {retention.days} дн.)"
                 )
                 to_delete.append(component)
             else:
