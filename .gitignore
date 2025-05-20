@@ -194,6 +194,7 @@ proxy_params
 .vscode/
 .idea/
 nexus-data/
+minio-data/
 todo.md
 pg_data*/
 ntest/
