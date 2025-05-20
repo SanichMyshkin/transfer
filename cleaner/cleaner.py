@@ -64,11 +64,8 @@ def get_repository_components(repo_name):
             return []
 
         items = data.get("items", None)
-        if items is None:
-            logging.error("❌ Некорректный формат ответа: отсутствует поле 'items'")
-            return []
 
-        if not items:
+        if not items and not components:
             logging.info(f"ℹ️ В репозитории '{repo_name}' нет компонентов для обработки")
             return []
 
