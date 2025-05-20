@@ -16,17 +16,12 @@ DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
 
 REPO_NAME = ["test1"]
 
-
 PREFIX_RULES = {
-    "dev": {"retention": timedelta(days=7), "reserved": 0},
-    "test": {"retention": timedelta(days=14), "reserved": 0},
-    "release": {"retention": timedelta(days=30), "reserved": 1},
-    "master": {"retention": timedelta(days=180), "reserved": 1},
+    "r1-": {"retention": timedelta(days=0), "reserved": 1},
+    "r-": {"retention": timedelta(days=0), "reserved": 1},
 }
 
-MAX_RETENTION = timedelta(days=180)
-
-
+MAX_RETENTION = timedelta(days=30)
 
 log_filename = "logs/cleaner.log"
 file_handler = TimedRotatingFileHandler(
@@ -104,7 +99,8 @@ def get_prefix_rules(version):
     for prefix, rules in PREFIX_RULES.items():
         if version_lower.startswith(prefix.lower()):
             return prefix, rules["retention"], rules["reserved"]
-    return None, None, None  # Сигнализируем, что префикс не найден
+    # Для остальных: нет префикса, но лимит 30 дней и без резерва
+    return "no-prefix", MAX_RETENTION, 0
 
 
 def filter_components_to_delete(components):

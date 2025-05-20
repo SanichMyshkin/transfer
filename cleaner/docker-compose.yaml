@@ -14,6 +14,29 @@ services:
       - "8086:8086"
     environment:
       - INSTALL4J_ADD_VM_PARAMS=-Xms1024m -Xmx2048m -XX:MaxDirectMemorySize=2g -Djava.util.prefs.userRoot=/nexus-data
+    networks:
+      - nexusnet
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: minio
+    restart: unless-stopped
+    volumes:
+      - ./minio-data:/data
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin123
+    command: server /data --console-address ":8201" --address ":8200"
+    ports:
+      - "8200:8200"  # S3 API
+      - "8201:8201"  # Web UI
+    networks:
+      - nexusnet
 
 volumes:
   nexus-data:
+  minio-data:
+
+networks:
+  nexusnet:
+    driver: bridge
