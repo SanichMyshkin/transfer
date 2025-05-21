@@ -99,10 +99,10 @@ repo_names:
   - test2
 
 prefix_rules:
-  r1-:
+  dev:
     retention_days: 0
     reserved: 1
-  r-:
+  test:
     retention_days: 0
     reserved: 1
 
