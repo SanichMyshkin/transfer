@@ -9,6 +9,10 @@ from dateutil.parser import parse
 from collections import defaultdict
 from logging.handlers import TimedRotatingFileHandler
 from dotenv import load_dotenv
+import urllib3
+
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 load_dotenv()
 
@@ -54,7 +58,7 @@ def get_repository_components(repo_name):
 
         try:
             response = requests.get(
-                url, auth=(USER_NAME, PASSWORD), params=params, timeout=10
+                url, auth=(USER_NAME, PASSWORD), params=params, timeout=10, verify=False
             )
             response.raise_for_status()
             data = response.json()
@@ -86,7 +90,9 @@ def delete_component(component_id, component_name, component_version, dry_run):
 
     url = f"{BASE_URL}service/rest/v1/components/{component_id}"
     try:
-        response = requests.delete(url, auth=(USER_NAME, PASSWORD), timeout=10)
+        response = requests.delete(
+            url, auth=(USER_NAME, PASSWORD), timeout=10, verify=False
+        )
         response.raise_for_status()
         logging.info(
             f"✅ Удалён образ: {component_name} (версия {component_version}, ID: {component_id})"
@@ -100,7 +106,11 @@ def get_prefix_rules(version, prefix_rules, no_prefix_retention, no_prefix_reser
     for prefix, rules in prefix_rules.items():
         if version_lower.startswith(prefix.lower()):
             retention_days = rules.get("retention_days")
-            retention = timedelta(days=retention_days) if retention_days is not None else timedelta.max
+            retention = (
+                timedelta(days=retention_days)
+                if retention_days is not None
+                else timedelta.max
+            )
             reserved = rules.get("reserved", 0)
             return prefix, retention, reserved
 
@@ -188,11 +198,12 @@ def filter_components_to_delete(
                 )
                 to_delete.append(component)
             else:
-                retention_str = "∞" if retention == timedelta.max else f"{retention.days} дн."
+                retention_str = (
+                    "∞" if retention == timedelta.max else f"{retention.days} дн."
+                )
                 logging.info(
                     f"📦 Сохранён: {name}:{version} (возраст: {age.days} дн., лимит: {retention_str})"
                 )
-
 
     return to_delete
 
