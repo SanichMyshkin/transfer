@@ -1,34 +1,24 @@
 import os
+import sys
 import logging
 import requests
+import argparse
+import yaml
 from datetime import datetime, timezone, timedelta
 from dateutil.parser import parse
-from dotenv import load_dotenv
 from collections import defaultdict
 from logging.handlers import TimedRotatingFileHandler
+from dotenv import load_dotenv
 
 load_dotenv()
 
 USER_NAME = os.getenv("USER_NAME")
 PASSWORD = os.getenv("PASSWORD")
 BASE_URL = os.getenv("BASE_URL")
-DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
-
-REPO_NAME = ["test1"]
-
-
-PREFIX_RULES = {
-    "dev": {"retention": timedelta(days=7), "reserved": 0},
-    "test": {"retention": timedelta(days=14), "reserved": 0},
-    "release": {"retention": timedelta(days=30), "reserved": 1},
-    "master": {"retention": timedelta(days=180), "reserved": 1},
-}
-
-MAX_RETENTION = timedelta(days=180)
-
-
 
 log_filename = "logs/cleaner.log"
+os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+
 file_handler = TimedRotatingFileHandler(
     log_filename, when="midnight", interval=1, backupCount=7, encoding="utf-8"
 )
@@ -41,6 +31,15 @@ logging.basicConfig(
         logging.StreamHandler(),
     ],
 )
+
+
+def load_config(path):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+    except Exception as e:
+        logging.error(f"❌ Ошибка загрузки конфига '{path}': {e}")
+        sys.exit(1)
 
 
 def get_repository_components(repo_name):
@@ -63,7 +62,7 @@ def get_repository_components(repo_name):
             logging.error(f"❌ Ошибка при получении компонентов '{repo_name}': {e}")
             return []
 
-        items = data.get("items", None)
+        items = data.get("items")
 
         if not items and not components:
             logging.info(f"ℹ️ В репозитории '{repo_name}' нет компонентов для обработки")
@@ -78,8 +77,8 @@ def get_repository_components(repo_name):
     return components
 
 
-def delete_component(component_id, component_name, component_version):
-    if DRY_RUN:
+def delete_component(component_id, component_name, component_version, dry_run):
+    if dry_run:
         logging.info(
             f"🧪 [DRY_RUN] Пропущено удаление: {component_name} (версия {component_version}, ID: {component_id})"
         )
@@ -96,15 +95,27 @@ def delete_component(component_id, component_name, component_version):
         logging.error(f"❌ Ошибка при удалении компонента {component_id}: {e}")
 
 
-def get_prefix_rules(version):
+def get_prefix_rules(version, prefix_rules, no_prefix_retention, no_prefix_reserved):
     version_lower = version.lower()
-    for prefix, rules in PREFIX_RULES.items():
+    for prefix, rules in prefix_rules.items():
         if version_lower.startswith(prefix.lower()):
-            return prefix, rules["retention"], rules["reserved"]
-    return None, None, None  # Сигнализируем, что префикс не найден
+            retention_days = rules.get("retention_days")
+            retention = timedelta(days=retention_days) if retention_days is not None else timedelta.max
+            reserved = rules.get("reserved", 0)
+            return prefix, retention, reserved
+
+    # Нет префикса
+    if no_prefix_retention is not None:
+        retention = timedelta(days=no_prefix_retention)
+    else:
+        retention = timedelta.max
+    reserved = no_prefix_reserved if no_prefix_reserved is not None else 0
+    return "no-prefix", retention, reserved
 
 
-def filter_components_to_delete(components):
+def filter_components_to_delete(
+    components, prefix_rules, max_retention, no_prefix_retention, no_prefix_reserved
+):
     now_utc = datetime.now(timezone.utc) + timedelta(seconds=1)
     grouped = defaultdict(list)
 
@@ -126,20 +137,15 @@ def filter_components_to_delete(components):
         except Exception:
             continue
 
-        # Отсекаем latest-теги сразу — у них иммунитет
         if "latest" in version.lower():
             logging.info(
                 f"🔒 Пропущен тег {version}: {name}:{version} — иммунитет от удаления"
             )
-            continue  # Не попадают в группы и в резерв
+            continue
 
-        # Определяем правила по префиксу
-        prefix, retention, reserved = get_prefix_rules(version)
-        if prefix is None:
-            # Для тегов без префикса используем глобальное правило: 30 дней, без резерва
-            retention = timedelta(days=30)
-            reserved = 0
-            prefix = "global"
+        prefix, retention, reserved = get_prefix_rules(
+            version, prefix_rules, no_prefix_retention, no_prefix_reserved
+        )
 
         component.update(
             {
@@ -155,7 +161,6 @@ def filter_components_to_delete(components):
     to_delete = []
 
     for (name, prefix), group in grouped.items():
-        # Сортируем по дате последнего изменения (новейшие — впереди)
         sorted_group = sorted(group, key=lambda x: x["last_modified"], reverse=True)
 
         for i, component in enumerate(sorted_group):
@@ -164,42 +169,48 @@ def filter_components_to_delete(components):
             retention = component["retention"]
             reserved = component["reserved"]
 
-            # Проверяем лимит максимального возраста
-            if age > MAX_RETENTION:
+            if max_retention and age > timedelta(days=max_retention):
                 logging.info(
-                    f"🗑 К удалению (старше {MAX_RETENTION.days} дн.): {name}:{version} (возраст: {age.days} дн.)"
+                    f"🗑 К удалению (старше {max_retention} дн.): {name}:{version} (возраст: {age.days} дн.)"
                 )
                 to_delete.append(component)
                 continue
 
-            # Проверяем резерв — сохраняем первые N образов по префиксу
             if i < reserved:
                 logging.info(
                     f"📦 Сохранён (резерв {reserved}): {name}:{version} ({prefix})"
                 )
                 continue
 
-            # Если возраст больше retention, удаляем
-            if age > retention:
+            if retention is not None and age >= retention:
                 logging.info(
                     f"🗑 К удалению по правилу {prefix}: {name}:{version} (возраст: {age.days} дн., лимит: {retention.days} дн.)"
                 )
                 to_delete.append(component)
             else:
+                retention_str = "∞" if retention == timedelta.max else f"{retention.days} дн."
                 logging.info(
-                    f"📦 Сохранён: {name}:{version} (возраст: {age.days} дн., лимит: {retention.days} дн.)"
+                    f"📦 Сохранён: {name}:{version} (возраст: {age.days} дн., лимит: {retention_str})"
                 )
+
 
     return to_delete
 
 
-def clear_repository(repo_name):
+def clear_repository(repo_name, cfg):
     logging.info(f"🔄 Начало очистки репозитория '{repo_name}'")
     components = get_repository_components(repo_name)
     if not components:
         return
 
-    to_delete = filter_components_to_delete(components)
+    to_delete = filter_components_to_delete(
+        components,
+        prefix_rules=cfg.get("prefix_rules", {}),
+        max_retention=cfg.get("max_retention_days"),
+        no_prefix_retention=cfg.get("no_prefix_retention_days"),
+        no_prefix_reserved=cfg.get("no_prefix_reserved", 0),
+    )
+
     if not to_delete:
         logging.info(f"✅ Нет компонентов для удаления в репозитории '{repo_name}'")
         return
@@ -212,11 +223,22 @@ def clear_repository(repo_name):
             component["id"],
             component.get("name", "Без имени"),
             component.get("version", "Без версии"),
+            cfg.get("dry_run", False),
         )
 
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True, help="Путь к YAML-конфигу")
+    return parser.parse_args()
+
+
 def main():
-    list(map(clear_repository, REPO_NAME))
+    args = parse_args()
+    config = load_config(args.config)
+    repos = config.get("repo_names", [])
+    for repo in repos:
+        clear_repository(repo, config)
 
 
 if __name__ == "__main__":
