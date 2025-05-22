@@ -31,7 +31,7 @@ def get_repository_components(repo_name):
             params["continuationToken"] = continuation_token
 
         resp = requests.get(
-            f"{NEXUS_URL}/service/rest/v1/components",
+            f"{NEXUS_URL}service/rest/v1/components",
             params={**params, "repository": repo_name},
             auth=(USER_NAME, PASSWORD),
         )
@@ -81,7 +81,7 @@ def clear_repository(repo_name):
 
 
 def main():
-    repo_name = "test1"  # Имя репозитория, который нужно очистить
+    repo_name = "minio"  # Имя репозитория, который нужно очистить
     logging.info(f"🚮 Начинаю очистку репозитория: {repo_name}")
     clear_repository(repo_name)
 

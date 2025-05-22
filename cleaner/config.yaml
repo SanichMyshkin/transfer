@@ -15,11 +15,11 @@ prefix_rules:
 
 #  RESERVED выше чем days
 # Максимальный срок хранения и резервации для тегов не попадающие под префиксы
-#no_prefix_retention_days: 1
+#no_prefix_retention_days: 0
 no_prefix_reserved: 1
 
 # Максимальный срок хранения всех тегов РЕЗЕРВАЦИЯ НЕ СПАСЕТ!
-#max_retention_days: 0
+max_retention_days: 2
 
 # True - ничего не удалит, а просто выведет логи!
 dry_run: true 
