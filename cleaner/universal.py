@@ -174,7 +174,15 @@ def filter_components_to_delete(
             age = now_utc - component["last_modified"]
             retention = component.get("retention")
 
-            # 1. Если задан reserved — он в приоритете
+            # ✅ Проверка max_retention применяется всегда
+            if max_retention is not None and age.days > max_retention:
+                logging.info(
+                    f"🗑 К удалению (превышен max_retention {max_retention} дн.): {name}:{version} (возраст: {age.days} дн.)"
+                )
+                to_delete.append(component)
+                continue
+
+            # ✅ reserved после max_retention
             if reserved is not None and reserved > 0:
                 if i < reserved:
                     logging.info(
@@ -188,15 +196,7 @@ def filter_components_to_delete(
                     to_delete.append(component)
                     continue
 
-            # 2. Глобальное ограничение по времени (если reserved нет)
-            if max_retention is not None and age.days > max_retention:
-                logging.info(
-                    f"🗑 К удалению (превышен max_retention {max_retention} дн.): {name}:{version} (возраст: {age.days} дн.)"
-                )
-                to_delete.append(component)
-                continue
-
-            # 3. Проверка retention_days
+            # Проверка retention_days
             if retention is not None:
                 if age.days > retention.days:
                     logging.info(
@@ -209,10 +209,11 @@ def filter_components_to_delete(
                     )
                 continue
 
-            # 4. Без retention и reserved
+            # Без retention и reserved
             logging.info(
                 f"📦 Сохранён: {name}:{version} — ни retention, ни reserved не заданы, сохраняем по умолчанию"
             )
+
 
     return to_delete
 
