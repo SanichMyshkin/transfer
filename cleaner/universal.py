@@ -11,9 +11,7 @@ from logging.handlers import TimedRotatingFileHandler
 from dotenv import load_dotenv
 import urllib3
 
-
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 load_dotenv()
 
 USER_NAME = os.getenv("USER_NAME")
@@ -106,21 +104,17 @@ def get_prefix_rules(version, prefix_rules, no_prefix_retention, no_prefix_reser
     for prefix, rules in prefix_rules.items():
         if version_lower.startswith(prefix.lower()):
             retention_days = rules.get("retention_days")
+            reserved = rules.get("reserved")
+
             retention = (
-                timedelta(days=retention_days)
-                if retention_days is not None
-                else timedelta.max
+                timedelta(days=retention_days) if retention_days is not None else None
             )
-            reserved = rules.get("reserved", 0)
             return prefix, retention, reserved
 
-    # Нет префикса
-    if no_prefix_retention is not None:
-        retention = timedelta(days=no_prefix_retention)
-    else:
-        retention = timedelta.max
-    reserved = no_prefix_reserved if no_prefix_reserved is not None else 0
-    return "no-prefix", retention, reserved
+    retention = (
+        timedelta(days=no_prefix_retention) if no_prefix_retention is not None else None
+    )
+    return "no-prefix", retention, no_prefix_reserved
 
 
 def filter_components_to_delete(
@@ -173,39 +167,55 @@ def filter_components_to_delete(
     for (name, prefix), group in grouped.items():
         sorted_group = sorted(group, key=lambda x: x["last_modified"], reverse=True)
 
+        reserved = sorted_group[0].get("reserved")
+
         for i, component in enumerate(sorted_group):
             version = component.get("version", "Без версии")
             age = now_utc - component["last_modified"]
-            retention = component["retention"]
-            reserved = component["reserved"]
+            retention = component.get("retention")
 
-            if max_retention and age > timedelta(days=max_retention):
+            # 1. Если задан reserved — он в приоритете
+            if reserved is not None and reserved > 0:
+                if i < reserved:
+                    logging.info(
+                        f"📦 Сохранён (резерв {reserved}): {name}:{version} ({prefix}), осталось мест в резерве: {reserved - (i + 1)}"
+                    )
+                    continue
+                else:
+                    logging.info(
+                        f"🗑 К удалению (вышел за пределы резерва {reserved}): {name}:{version}"
+                    )
+                    to_delete.append(component)
+                    continue
+
+            # 2. Глобальное ограничение по времени (если reserved нет)
+            if max_retention is not None and age.days > max_retention:
                 logging.info(
-                    f"🗑 К удалению (старше {max_retention} дн.): {name}:{version} (возраст: {age.days} дн.)"
+                    f"🗑 К удалению (превышен max_retention {max_retention} дн.): {name}:{version} (возраст: {age.days} дн.)"
                 )
                 to_delete.append(component)
                 continue
 
-            if i < reserved:
-                logging.info(
-                    f"📦 Сохранён (резерв {reserved}): {name}:{version} ({prefix})"
-                )
+            # 3. Проверка retention_days
+            if retention is not None:
+                if age.days > retention.days:
+                    logging.info(
+                        f"🗑 К удалению по сроку: {name}:{version} (возраст: {age.days} дн., лимит: {retention.days} дн.)"
+                    )
+                    to_delete.append(component)
+                else:
+                    logging.info(
+                        f"📦 Сохранён: {name}:{version} (возраст: {age.days} дн., лимит: {retention.days} дн.) — причина: не достигнут срок хранения"
+                    )
                 continue
 
-            if retention is not None and age >= retention:
-                logging.info(
-                    f"🗑 К удалению по правилу {prefix}: {name}:{version} (возраст: {age.days} дн., лимит: {retention.days} дн.)"
-                )
-                to_delete.append(component)
-            else:
-                retention_str = (
-                    "∞" if retention == timedelta.max else f"{retention.days} дн."
-                )
-                logging.info(
-                    f"📦 Сохранён: {name}:{version} (возраст: {age.days} дн., лимит: {retention_str})"
-                )
+            # 4. Без retention и reserved
+            logging.info(
+                f"📦 Сохранён: {name}:{version} — ни retention, ни reserved не заданы, сохраняем по умолчанию"
+            )
 
     return to_delete
+
 
 
 def clear_repository(repo_name, cfg):
@@ -219,7 +229,7 @@ def clear_repository(repo_name, cfg):
         prefix_rules=cfg.get("prefix_rules", {}),
         max_retention=cfg.get("max_retention_days"),
         no_prefix_retention=cfg.get("no_prefix_retention_days"),
-        no_prefix_reserved=cfg.get("no_prefix_reserved", 0),
+        no_prefix_reserved=cfg.get("no_prefix_reserved", None),
     )
 
     if not to_delete:

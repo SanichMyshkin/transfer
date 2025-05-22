@@ -1,25 +1,25 @@
 repo_names:
   - test1
-  - test2
 
 prefix_rules:
   test:
-    retention_days: 0
+    #retention_days: 1
     reserved: 1
   release:
     retention_days: 0
     reserved: 1
   dev:
-    retention_days: 0
-    reserved: 1
+    retention_days: 2
+    #reserved: 1
 
 
+#  RESERVED выше чем days
 # Максимальный срок хранения и резервации для тегов не попадающие под префиксы
-no_prefix_retention_days: 0
-no_prefix_reserved: 0
+#no_prefix_retention_days: 1
+no_prefix_reserved: 1
 
 # Максимальный срок хранения всех тегов РЕЗЕРВАЦИЯ НЕ СПАСЕТ!
-max_retention_days: 180
+#max_retention_days: 0
 
 # True - ничего не удалит, а просто выведет логи!
 dry_run: true 
