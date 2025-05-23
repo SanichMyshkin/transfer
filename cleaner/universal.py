@@ -2,7 +2,6 @@ import os
 import sys
 import logging
 import requests
-import argparse
 import yaml
 from datetime import datetime, timezone, timedelta
 from dateutil.parser import parse
@@ -41,7 +40,7 @@ def load_config(path):
             return yaml.safe_load(f)
     except Exception as e:
         logging.error(f"❌ Ошибка загрузки конфига '{path}': {e}")
-        sys.exit(1)
+        return None
 
 
 def get_repository_components(repo_name):
@@ -174,7 +173,6 @@ def filter_components_to_delete(
             age = now_utc - component["last_modified"]
             retention = component.get("retention")
 
-            # ✅ Проверка max_retention применяется всегда
             if max_retention is not None and age.days > max_retention:
                 logging.info(
                     f"🗑 К удалению (превышен max_retention {max_retention} дн.): {name}:{version} (возраст: {age.days} дн.)"
@@ -182,7 +180,6 @@ def filter_components_to_delete(
                 to_delete.append(component)
                 continue
 
-            # ✅ reserved после max_retention
             if reserved is not None and reserved > 0:
                 if i < reserved:
                     logging.info(
@@ -196,7 +193,6 @@ def filter_components_to_delete(
                     to_delete.append(component)
                     continue
 
-            # Проверка retention_days
             if retention is not None:
                 if age.days > retention.days:
                     logging.info(
@@ -209,14 +205,11 @@ def filter_components_to_delete(
                     )
                 continue
 
-            # Без retention и reserved
             logging.info(
                 f"📦 Сохранён: {name}:{version} — ни retention, ни reserved не заданы, сохраняем по умолчанию"
             )
 
-
     return to_delete
-
 
 
 def clear_repository(repo_name, cfg):
@@ -249,18 +242,23 @@ def clear_repository(repo_name, cfg):
         )
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", required=True, help="Путь к YAML-конфигу")
-    return parser.parse_args()
-
-
 def main():
-    args = parse_args()
-    config = load_config(args.config)
-    repos = config.get("repo_names", [])
-    for repo in repos:
-        clear_repository(repo, config)
+    config_dir = os.path.join(os.path.dirname(__file__), "configs")
+    config_files = [f for f in os.listdir(config_dir) if f.endswith(".yaml")]
+
+    if not config_files:
+        logging.warning("⚠️ В папке 'configs/' не найдено ни одного YAML-файла")
+        return
+
+    for cfg_file in config_files:
+        full_path = os.path.join(config_dir, cfg_file)
+        logging.info(f"📄 Обработка конфига: {cfg_file}")
+        config = load_config(full_path)
+        if not config:
+            continue
+        repos = config.get("repo_names", [])
+        for repo in repos:
+            clear_repository(repo, config)
 
 
 if __name__ == "__main__":
