@@ -1,5 +1,3 @@
-# metrics/docker_tags_data.py
-
 import logging
 from database.connection import get_db_connection
 

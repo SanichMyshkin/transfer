@@ -11,7 +11,7 @@ from metrics.repo_size import fetch_repository_metrics
 from metrics.blobs_size import fetch_blob_metrics
 from metrics.docker_tags import fetch_docker_tags_metrics
 from metrics.utlis.tasks import fetch_task_metrics, get_json_from_nexus
-
+from metrics.docker_ports import fetch_docker_ports_metrics
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,7 +44,11 @@ def main():
         logging.info("Запуск сбора Docker тегов...")
         fetch_docker_tags_metrics()
 
+        logging.info("Запуск сбора Docker портов...")
+        fetch_docker_ports_metrics()
+
         time.sleep(LAUNCH_INTERVAL)
+
 
 
 if __name__ == "__main__":

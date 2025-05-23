@@ -1,5 +1,4 @@
 import os
-import sys
 import logging
 import requests
 import yaml
@@ -17,7 +16,8 @@ USER_NAME = os.getenv("USER_NAME")
 PASSWORD = os.getenv("PASSWORD")
 BASE_URL = os.getenv("BASE_URL")
 
-log_filename = "logs/cleaner.log"
+log_filename = os.path.join(os.path.dirname(__file__), "logs", "cleaner.log")
+
 os.makedirs(os.path.dirname(log_filename), exist_ok=True)
 
 file_handler = TimedRotatingFileHandler(
@@ -140,7 +140,7 @@ def filter_components_to_delete(
         except Exception:
             continue
 
-        if "latest" in version.lower():
+        if "latest" == version.lower():
             logging.info(
                 f"🔒 Пропущен тег {version}: {name}:{version} — иммунитет от удаления"
             )
