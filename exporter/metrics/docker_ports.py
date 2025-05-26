@@ -7,7 +7,7 @@ from database.ports_query import fetch_docker_ports
 docker_repo_port_gauge = Gauge(
     "docker_repository_port_info",
     "Информация о портах и удалённых адресах docker-репозиториев Nexus",
-    ["repository_name", "http_port", "remote_url"],
+    ["repository_name", "http_port", "remote_url", "repo_type"],
 )
 
 
@@ -29,8 +29,9 @@ def fetch_docker_ports_metrics() -> None:
 
             docker_repo_port_gauge.labels(
                 repository_name=repo_name,
-                http_port=str(http_port) if http_port is not None else "unknown",
-                remote_url=remote_url if remote_url else "unknown",
+                http_port=str(http_port) if http_port is not None else "None",
+                remote_url=remote_url if remote_url else "None",
+                repo_type="Proxy" if remote_url else "Hosted",
             ).set(1)
 
         logging.info("Метрики по портам docker-репозиториев успешно обновлены.")
