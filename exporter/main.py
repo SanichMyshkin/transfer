@@ -10,7 +10,7 @@ from metrics.repo_status import fetch_repositories_metrics
 from metrics.repo_size import fetch_repository_metrics
 from metrics.blobs_size import fetch_blob_metrics
 from metrics.docker_tags import fetch_docker_tags_metrics
-from metrics.utlis.tasks import fetch_task_metrics, get_json_from_nexus
+from metrics.tasks import fetch_task_metrics, get_tasks
 from metrics.docker_ports import fetch_docker_ports_metrics
 from metrics.certificates import update_cert_match_metrics
 
@@ -34,7 +34,7 @@ def main():
         fetch_blob_metrics(NEXUS_API_URL, auth)
 
         logging.info("Получение задач Nexus...")
-        task_data = get_json_from_nexus(NEXUS_API_URL, "/service/rest/v1/tasks", auth)
+        task_data = get_tasks(NEXUS_API_URL, auth)
 
         logging.info("Запуск сбора размера репозиториев...")
         fetch_repository_metrics(task_data)
