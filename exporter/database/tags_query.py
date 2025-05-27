@@ -2,6 +2,12 @@ import logging
 from database.connection import get_db_connection
 
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(module)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+
 def fetch_docker_tags_data():
     """
     Получает информацию о docker-образах и их тегах из БД
@@ -29,7 +35,7 @@ def fetch_docker_tags_data():
             result = cur.fetchall()
 
     except Exception as e:
-        logging.error(f"❌ Ошибка при выполнении запроса docker tags: {e}")
+        logger.error(f"❌ Ошибка при выполнении запроса docker tags: {e}")
     finally:
         if conn:
             conn.close()

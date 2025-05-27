@@ -1,8 +1,14 @@
 import logging
 from prometheus_client import Gauge
 
-from metrics.utlis.url import build_nexus_url
+from metrics.utlis.api import build_nexus_url
 from database.tags_query import fetch_docker_tags_data
+
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(module)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 # Метрика Prometheus
 docker_tags_gauge = Gauge(
@@ -48,35 +54,46 @@ def process_docker_result(result: list) -> list:
 def fetch_docker_tags_metrics() -> None:
     try:
         result = fetch_docker_tags_data()
-        logging.info(f"Получено {len(result)} строк из базы данных.")
-        grouped = process_docker_result(result)
-
-        docker_tags_gauge.clear()
-
-        for entry in grouped:
-            image = entry["image"]
-            tags = sorted(entry["tags"])
-            repo = entry["repoName"]
-            repo_format = entry["repoFormat"]
-            blob = entry["blobName"]
-
-            tag_str = "; ".join(tags)
-            tag_count = len(tags)
-
-            logging.info(
-                f"Образ: {image}, Репозиторий: {repo}, Теги ({tag_count}): {tag_str}"
-            )
-
-            docker_tags_gauge.labels(
-                image_name=image,
-                tags=tag_str,
-                repository=repo,
-                format=repo_format,
-                blob=blob,
-                nexus_url_path=build_nexus_url(repo, image, encoding=False)
-            ).set(tag_count)
-
-        logging.info(f"Метрики обновлены для {len(grouped)} Docker-образов.")
-
     except Exception as e:
-        logging.error(f"Ошибка при получении метрик Docker-образов: {e}")
+        logger.error(f"❌ Ошибка при получении данных из БД для Docker-образов: {e}")
+        logger.warning(
+            "⚠️ Возможно, база данных недоступна или Nexus не работает. Сбор метрик пропущен."
+        )
+        return
+
+    if not result:
+        logger.warning(
+            "❌ База данных вернула 0 строк по Docker-образам. "
+            "Возможно, Nexus не отвечает, база пуста или репозиториев нет. Метрики не обновлены."
+        )
+        return
+
+    logger.info(f"📥 Получено {len(result)} строк из базы данных.")
+    grouped = process_docker_result(result)
+
+    docker_tags_gauge.clear()
+
+    for entry in grouped:
+        image = entry["image"]
+        tags = sorted(entry["tags"])
+        repo = entry["repoName"]
+        repo_format = entry["repoFormat"]
+        blob = entry["blobName"]
+
+        tag_str = "; ".join(tags)
+        tag_count = len(tags)
+
+        logger.info(
+            f"🐳 Образ: {image} | 📦 Репозиторий: {repo} | 🏷️ Теги ({tag_count}): {tag_str}"
+        )
+
+        docker_tags_gauge.labels(
+            image_name=image,
+            tags=tag_str,
+            repository=repo,
+            format=repo_format,
+            blob=blob,
+            nexus_url_path=build_nexus_url(repo, image, encoding=False),
+        ).set(tag_count)
+
+    logger.info(f"✅ Метрики обновлены для {len(grouped)} Docker-образов.")

@@ -5,6 +5,11 @@ import logging
 
 from config import DATABASE_URL
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(module)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 
 def get_db_connection():
     if not DATABASE_URL:
@@ -22,5 +27,5 @@ def get_db_connection():
         )
         return conn
     except psycopg2.Error as e:
-        logging.error(f"Не удалось подключиться к БД: {e}")
+        logger.error(f"Не удалось подключиться к БД: {e}")
         raise

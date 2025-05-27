@@ -1,6 +1,11 @@
 import logging
 from database.connection import get_db_connection
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(module)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 
 def fetch_docker_ports():
     """
@@ -35,12 +40,12 @@ def fetch_docker_ports():
                         }
                     )
                 except Exception as parse_error:
-                    logging.warning(
+                    logger.warning(
                         f"⚠️ Ошибка при обработке атрибутов репозитория {repo_name}: {parse_error}"
                     )
 
     except Exception as e:
-        logging.error(f"❌ Ошибка при запросе данных docker-репозиториев: {e}")
+        logger.error(f"❌ Ошибка при запросе данных docker-репозиториев: {e}")
     finally:
         if conn:
             conn.close()

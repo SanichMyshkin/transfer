@@ -1,9 +1,20 @@
 import logging
 import time
 import socket
+import urllib3
 from prometheus_client import Gauge, Info
-from metrics.utlis.api import get_repositories, safe_get_raw
+from metrics.utlis.api import get_from_nexus, safe_get_raw
 
+# Настройка логов
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+logging.getLogger("urllib3.connectionpool").setLevel(logging.CRITICAL)
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+logger = logging.getLogger(__name__)
+
+# Метрики
 REPO_STATUS = Gauge(
     "nexus_proxy_repo_status",
     "Статус репозитория в Nexus",
@@ -19,8 +30,6 @@ REPO_STATUS = Gauge(
 )
 REPO_COUNT = Gauge("nexus_repo_count", "Количество репозиториев по типу", ["repo_type"])
 REDIRECT_INFO = Info("nexus_repo_redirect_info", "Информация о редиректах")
-
-logger = logging.getLogger(__name__)
 
 
 def is_domain_resolvable(url: str) -> bool:
@@ -146,13 +155,20 @@ def update_all_metrics(statuses: list):
 
 
 def fetch_repositories_metrics(nexus_url: str, auth: tuple) -> list:
-    start = time.perf_counter()
+    logger.info("🔍 Запуск сбора статуса репозиториев типа Proxy...")
 
-    raw_repos = get_repositories(nexus_url, auth)
+    start = time.perf_counter()
+    raw_repos = get_from_nexus(nexus_url, "repositories", auth)
+
+    if not raw_repos:
+        logger.error(f"❌ Не удалось получить список репозиториев из Nexus: {nexus_url}")
+        logger.error("🚫 Пропускаем сбор Status метрик.")
+        return []
+
     repos = [
         {
             "name": r["name"],
-            "url": f"{nexus_url}service/rest/repository/browse/{r['name']}/",
+            "url": f"{nexus_url.rstrip('/')}/service/rest/repository/browse/{r['name']}/",
             "type": r.get("format", ""),
             "remote": r.get("attributes", {}).get("proxy", {}).get("remoteUrl", ""),
         }
@@ -166,11 +182,10 @@ def fetch_repositories_metrics(nexus_url: str, auth: tuple) -> list:
         type_counts[repo_type] = type_counts.get(repo_type, 0) + 1
 
     for repo_type, count in type_counts.items():
-        REPO_COUNT.labels(repo_type=repo_type).set(count)
         logger.info(f"📊 Репозиториев типа '{repo_type}': {count}")
 
     logger.info(
-        f"🔍 Получено {len(repos)} proxy-репозиториев, начинаем проверку URL..."
+        f"📡 Получено {len(repos)} proxy-репозиториев. Начинаем проверку URL..."
     )
 
     statuses = [fetch_status(repo, auth) for repo in repos]

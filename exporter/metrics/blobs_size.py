@@ -3,11 +3,14 @@ import requests
 import urllib3
 from prometheus_client import Gauge
 
+# Отключаем ворнинги и лишние логи от urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+logging.getLogger("urllib3.connectionpool").setLevel(logging.CRITICAL)
 
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(module)s - %(message)s"
 )
+logger = logging.getLogger(__name__)
 
 # Prometheus метрика
 BLOB_STORAGE_USAGE = Gauge(
@@ -34,24 +37,20 @@ def get_blobstores(nexus_url: str, auth: tuple) -> list | None:
         response.raise_for_status()
         return response.json()
     except requests.exceptions.ConnectionError:
-        logging.error(f"❌ Nexus недоступен: {nexus_url}")
+        logger.error(f"❌ Не удалось подключиться к Nexus: {nexus_url}")
     except requests.exceptions.Timeout:
-        logging.error(f"⏳ Таймаут при подключении к {nexus_url}")
+        logger.error(f"⏳ Таймаут при подключении к Nexus: {nexus_url}")
     except requests.exceptions.HTTPError as e:
-        logging.error(
-            f"⚠️ HTTP {e.response.status_code}: {e.response.reason} по адресу {nexus_url}"
-        )
+        logger.error(f"⚠️ HTTP {e.response.status_code}: {e.response.reason}")
     except requests.exceptions.RequestException as e:
-        logging.error(f"❗ Ошибка запроса: {e}")
+        logger.error(f"❗ Ошибка при запросе к Nexus: {e}")
     return None
 
 
 def get_quota(data: dict):
     """Извлекает квоту если она есть"""
     quota = data.get("softQuota")
-    if quota:
-        quota = quota.get("limit")
-    return quota
+    return quota.get("limit") if quota else None
 
 
 def update_metrics(blobstores: list) -> None:
@@ -76,7 +75,7 @@ def update_metrics(blobstores: list) -> None:
             blob_quota=str(quota),
         ).set(blob["availableSpaceInBytes"])
 
-        logging.info(
+        logger.info(
             f"[{blob['name']}] used: {blob['totalSizeInBytes']} | "
             f"available: {blob['availableSpaceInBytes']} | "
             f"type: {blob['type']} | count: {blob['blobCount']} | quota: {quota}"
@@ -85,10 +84,10 @@ def update_metrics(blobstores: list) -> None:
 
 def fetch_blob_metrics(nexus_url: str, auth: tuple) -> None:
     """Основная функция — получение blobstore и обновление метрик."""
-    logging.info("Запрос blobstore из Nexus...")
+    logger.info("📦 Получаем blobstore из Nexus...")
     blobstores = get_blobstores(nexus_url, auth)
-    if blobstores is None:
-        logging.warning("🚫 Blobstore данные не получены. Метрики не будут обновлены.")
+    if not blobstores:
+        logger.warning("🚫 Нет данных о blobstore. Метрики не обновлены.")
         return
 
     update_metrics(blobstores)

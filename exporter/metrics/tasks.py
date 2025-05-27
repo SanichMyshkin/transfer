@@ -1,8 +1,9 @@
 import logging
 from prometheus_client import Gauge
 
-from metrics.utlis.api import safe_get_json
-
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(module)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 # Метрика задач
@@ -22,13 +23,6 @@ TASK_INFO = Gauge(
 )
 
 
-def get_tasks(nexus_url: str, auth: tuple) -> dict | list | None:
-    endpoint = "/service/rest/v1/tasks"
-    full_url = f"{nexus_url.rstrip('/')}{endpoint}"
-    logger.info(f"📡 Запрос задач с Nexus: {full_url}")
-    return safe_get_json(full_url, auth)
-
-
 def export_tasks_to_metrics(tasks: list) -> None:
     TASK_INFO.clear()
 
@@ -42,6 +36,7 @@ def export_tasks_to_metrics(tasks: list) -> None:
         task_id = task.get("id", "N/A")
         task_name = task.get("name", "N/A")
         last_result = task.get("lastRunResult")
+        result_icon = "✅" if last_result == "OK" else "❌" if last_result == "ERROR" else "⚠️"
         value = 0 if last_result == "OK" else 1 if last_result else -1
 
         try:
@@ -55,19 +50,19 @@ def export_tasks_to_metrics(tasks: list) -> None:
                 next_run=task.get("nextRun") or "null",
                 last_run=task.get("lastRun") or "null",
             ).set(value)
-            logger.info(
-                f"📊 Обновляем метрики для задачи - {task_name} статус {last_result}"
-            )
-        except Exception as e:
-            logger.warning(f"⚠️ Ошибка метрики для {task_id}: {e}", exc_info=True)
 
-    logger.info("✅ Метрики задач обновлены.")
+            logger.info(f"📊 Задача: {task_name} | Тип: {task.get('type')} | Статус: {result_icon} {last_result}")
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при экспорте метрик для задачи {task_id}: {e}", exc_info=True)
+
+    logger.info("📈 Метрики задач Nexus обновлены.")
 
 
 def fetch_task_metrics(task_data: dict | None) -> None:
     if not task_data or "items" not in task_data:
-        logger.error("❌ Не удалось загрузить задачи с Nexus")
+        logger.error("❌ Не удалось собрать метрики задач. Пропускаем сбор метрик!")
         return
+    logger.info("📥 Получены данные задач Nexus, начинаем экспорт в метрики...")
     export_tasks_to_metrics(task_data["items"])
 
 
@@ -77,7 +72,7 @@ def extract_blob_name(message: str | None) -> str | None:
     try:
         return message.split()[1]
     except IndexError:
-        logger.warning(f"⚠️ Невозможно извлечь blobName из сообщения: {message}")
+        logger.warning(f"⚠️ Невозможно извлечь blobName из сообщения: '{message}'")
         return None
 
 
@@ -101,14 +96,18 @@ def filter_blobstore_tasks(data: dict | None) -> dict:
         blob_name = task.get("blobName") or extract_blob_name(task.get("message"))
 
         if not blob_name:
+            logger.warning(f"⚠️ Пропущена задача без blobName: {task.get('name', 'N/A')}")
             continue
 
         status = 1 if last_result == "OK" else -1 if last_result == "ERROR" else 0
+        status_icon = "✅" if status == 1 else "❌" if status == -1 else "⚠️"
 
         if blob_name not in result:
             result[blob_name] = {"delete": 0, "compact": 0}
 
         result[blob_name][type_task_map[task_type]] = status
-        logger.info(f"🔎 {type_task_map[task_type]} для {blob_name}: {status}")
 
+        logger.info(f"🧹 Задача '{type_task_map[task_type]}' для blob '{blob_name}': {status_icon} {last_result or 'unknown'}")
+
+    logger.info("🔍 Анализ задач blobstore завершён.")
     return result

@@ -4,13 +4,13 @@ from psycopg2 import sql
 from database.connection import get_db_connection
 
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(module)s - %(message)s"
 )
-
+logger = logging.getLogger(__name__)
 
 def get_repository_sizes() -> dict:
     """Функция для вычисления размера репозиториев"""
-    logging.info("🚀 Начало подсчета размера репозиториев")
+    logger.info("🚀 Начало подсчета размера репозиториев")
 
     repo_sizes = {}
     conn = None
@@ -23,10 +23,10 @@ def get_repository_sizes() -> dict:
                 ("%_content_repository",),
             )
             table_names = [x[0] for x in cur.fetchall()]
-            logging.info(f"🔍 Найдено {len(table_names)} таблиц content_repository")
+            logger.info(f"🔍 Найдено {len(table_names)} таблиц content_repository")
             for table in table_names:
                 repo_type = table.replace("_content_repository", "")
-                logging.info(f"📦 Обработка репозитория типа: {repo_type}")
+                logger.info(f"📦 Обработка репозитория типа: {repo_type}")
 
                 query = sql.SQL(
                     """
@@ -46,10 +46,10 @@ def get_repository_sizes() -> dict:
                 try:
                     cur.execute(query)
                     rows = cur.fetchall()
-                    logging.info(f"🔹 Найдено {len(rows)} записей для типа {repo_type}")
+                    logger.info(f"🔹 Найдено {len(rows)} записей для типа {repo_type}")
                     repo_sizes.update(dict(rows))
                 except Exception as query_err:
-                    logging.error(
+                    logger.error(
                         f"❌ Ошибка при запросе данных для {repo_type}: {query_err}",
                         exc_info=True,
                     )
@@ -57,13 +57,13 @@ def get_repository_sizes() -> dict:
             if repo_sizes:
                 total_size = sum(repo_sizes.values())
                 for name, size_bytes in repo_sizes.items():
-                    logging.info(f"{name}: {size_bytes}")
+                    logger.info(f"{name}: {size_bytes}")
                 logging.info(f"🧮 Общий размер всех репозиториев: {total_size}")
             else:
-                logging.warning("⚠️ Репозитории не найдены или их размер равен 0.")
+                logger.warning("⚠️ Репозитории не найдены или их размер равен 0.")
 
     except Exception as e:
-        logging.error(f"❌ Ошибка при получении размеров репозиториев: {e}")
+        logger.error(f"❌ Ошибка при получении размеров репозиториев: {e}")
     finally:
         if conn:
             conn.close()
@@ -73,7 +73,7 @@ def get_repository_sizes() -> dict:
 
 def get_repository_data() -> list:
     """Функция для получения информации о политиках очистки репозиториев"""
-    logging.info("🚀 Получение информации о политиках очистки")
+    logger.info("🚀 Получение информации о политиках очистки")
 
     results = []
     conn = None
@@ -97,14 +97,14 @@ def get_repository_data() -> list:
             rows = cur.fetchall()
 
             if not rows:
-                logging.warning("⚠️ Не найдено политик очистки или репозиториев")
+                logger.warning("⚠️ Не найдено политик очистки или репозиториев")
             else:
                 columns = [desc[0] for desc in cur.description]
                 results = [dict(zip(columns, row)) for row in rows]
-                logging.info(f"📋 Получена информация по {len(results)} репозиториям")
+                logger.info(f"📋 Получена информация по {len(results)} репозиториям")
 
     except Exception as e:
-        logging.error(f"❌ Ошибка при получении политик репозиториев: {e}")
+        logger.error(f"❌ Ошибка при получении политик репозиториев: {e}")
     finally:
         if conn:
             conn.close()

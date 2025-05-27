@@ -28,13 +28,25 @@ REPO_STORAGE = Gauge(
 def fetch_repository_metrics(task_data: dict) -> list:
     logger.info("🔄 Сбор информации о репозиториях и метриках...")
 
-    repo_size = get_repository_sizes()
-    repo_data = get_repository_data()
+    try:
+        repo_size = get_repository_sizes()
+        repo_data = get_repository_data()
+    except Exception as e:
+        logger.error(f"❌ Ошибка при получении данных из БД: {e}")
+        return []
+
+    if not repo_data:
+        logger.error("❌ Не удалось получить данные о репозиториях — метрики не будут обновлены")
+        return []
 
     for repo in repo_data:
         repo["size"] = repo_size.get(repo.get("repository_name"), 0)
 
-    task_statuses = filter_blobstore_tasks(task_data)
+    try:
+        task_statuses = filter_blobstore_tasks(task_data)
+    except Exception as e:
+        logger.error(f"❌ Ошибка при обработке задач blobstore: {e}")
+        task_statuses = {}
 
     # Очищаем метрики перед их обновлением
     REPO_STORAGE.clear()
