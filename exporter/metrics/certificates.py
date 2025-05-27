@@ -29,24 +29,25 @@ def match_level(cert_cn: str, remote_url: str) -> int:
 def update_cert_match_metrics(nexus_url: str, auth: tuple):
     CERT_MATCH_STATUS.clear()
 
-    certs = get_from_nexus(nexus_url, "security/ssl/truststore", auth)
+    try:
+        certs = get_from_nexus(nexus_url, "security/ssl/truststore", auth)
+    except Exception as e:
+        logger.error(f"Ошибка при получении сертификатов: {e}")
+        return
+
     if not certs:
-        logger.warning(
-            f"⚠️ Не удалось получить сертификаты с {nexus_url} или получен пустой список. "
-            f"Возможно Nexus выключен. Прерываем сбор метрик."
-        )
+        logger.info("Сертификаты не найдены")
         return
 
-    repos = get_from_nexus(nexus_url, "repositories", auth)
+    try:
+        repos = get_from_nexus(nexus_url, "repositories", auth)
+    except Exception as e:
+        logger.error(f"Ошибка при получении репозиториев: {e}")
+        return
+
     if not repos:
-        logger.error(
-            f"❌ Не удалось получить репозитории с {nexus_url} или получен пустой список. "
-            f"Прерываем сбор SSL метрик."
-        )
-        return
-
-    logger.info(f"🔐 Получено сертификатов: {len(certs)}")
-    logger.info(f"📦 Получено proxy-репозиториев: {len(repos)}")
+        logger.info("Репозитории отсуствуют")
+        return 
 
     repos = [
         {
@@ -60,7 +61,6 @@ def update_cert_match_metrics(nexus_url: str, auth: tuple):
     for repo in repos:
         remote = repo["remote"]
         name = repo["name"]
-        matched = False
 
         for cert in certs:
             cn = cert.get("subjectCommonName", "")
@@ -75,11 +75,5 @@ def update_cert_match_metrics(nexus_url: str, auth: tuple):
 
             if level > 0:
                 logger.info(
-                    f"🔍 Repo: {name} → {remote} | Cert CN: {cn} | Уровень совпадения: {level}"
+                    f"✔️ Совпадение: Repo='{name}', URL='{remote}', CN='{cn}', Уровень={level}"
                 )
-                matched = True
-
-        if not matched:
-            logger.info(
-                f"🔍 Repo: {name} → {remote} | Ни один сертификат не подходит | Уровень совпадения: 0"
-            )
