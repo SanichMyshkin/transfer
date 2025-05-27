@@ -31,23 +31,13 @@ def update_cert_match_metrics(nexus_url: str, auth: tuple):
 
     try:
         certs = get_from_nexus(nexus_url, "security/ssl/truststore", auth)
-    except Exception as e:
-        logger.error(f"Ошибка при получении сертификатов: {e}")
-        return
-
-    if not certs:
-        logger.info("Сертификаты не найдены")
-        return
-
-    try:
         repos = get_from_nexus(nexus_url, "repositories", auth)
     except Exception as e:
-        logger.error(f"Ошибка при получении репозиториев: {e}")
+        logger.error(f"Ошибка при получении данных из Nexus: {e}")
         return
 
-    if not repos:
-        logger.info("Репозитории отсуствуют")
-        return 
+    if not certs or not repos:
+        return
 
     repos = [
         {
@@ -61,19 +51,26 @@ def update_cert_match_metrics(nexus_url: str, auth: tuple):
     for repo in repos:
         remote = repo["remote"]
         name = repo["name"]
+        best_level = 0
+        best_cert_cn = None
 
         for cert in certs:
             cn = cert.get("subjectCommonName", "")
             level = match_level(cn, remote)
 
+            if level > best_level:
+                best_level = level
+                best_cert_cn = cn
+
+        # Только одно метрика и лог
+        if best_level > 0 and best_cert_cn:
             CERT_MATCH_STATUS.labels(
                 repo_name=name,
                 remote_url=remote,
-                subject_common_name=cn,
-                match_level=str(level),
-            ).set(level)
+                subject_common_name=best_cert_cn,
+                match_level=str(best_level),
+            ).set(best_level)
 
-            if level > 0:
-                logger.info(
-                    f"✔️ Совпадение: Repo='{name}', URL='{remote}', CN='{cn}', Уровень={level}"
-                )
+            logger.info(
+                f"✔️ Совпадение: Repo='{name}', URL='{remote}', CN='{best_cert_cn}', Уровень={best_level}"
+            )
