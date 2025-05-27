@@ -2,10 +2,9 @@ import logging
 import time
 import socket
 import urllib3
-from prometheus_client import Gauge, Info
+from prometheus_client import Gauge
 from metrics.utlis.api import get_from_nexus, safe_get_raw
 
-# Настройка логов
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logging.getLogger("urllib3.connectionpool").setLevel(logging.CRITICAL)
 logging.basicConfig(
@@ -29,7 +28,6 @@ REPO_STATUS = Gauge(
     ],
 )
 REPO_COUNT = Gauge("nexus_repo_count", "Количество репозиториев по типу", ["repo_type"])
-REDIRECT_INFO = Info("nexus_repo_redirect_info", "Информация о редиректах")
 
 
 def is_domain_resolvable(url: str) -> bool:
@@ -68,62 +66,53 @@ def check_url_status(
         return format_status(None, str(error)), False, ""
 
     redirected = len(response.history) > 0
-    redirect_chain = ""
 
     if redirected:
         chain = []
         for resp in response.history:
             loc = resp.headers.get("Location", "<unknown>")
             chain.append(f"{resp.status_code} → {loc}")
-        redirect_chain = " > ".join(chain)
-        logger.info(f"🔁 {name} редиректы: {redirect_chain}")
+        logger.info(f"🔁 {name} редиректы: {' > '.join(chain)}")
 
     logger.info(
         f"🔚 {name} финальный URL: {response.url} (статус: {response.status_code})"
     )
-    return format_status(response.status_code), redirected, redirect_chain
+    return format_status(response.status_code), redirected, ""
 
 
 def check_docker_remote(repo_name: str, base_url: str) -> tuple:
-    status, redirected, redirect_info = check_url_status(
+    status, redirected, _ = check_url_status(
         f"{repo_name} (docker)", base_url, check_dns=True
     )
     if status.startswith("✅"):
-        return status, redirected, redirect_info
+        return status, redirected, ""
     if not base_url.endswith("/v2"):
         return check_url_status(repo_name, base_url.rstrip("/") + "/v2", check_dns=True)
-    return status, redirected, redirect_info
+    return status, redirected, ""
 
 
 def fetch_status(repo: dict, auth: tuple) -> dict:
-    nexus_status, nexus_redirected, nexus_redirect_info = check_url_status(
+    nexus_status, nexus_redirected, _ = check_url_status(
         f"{repo['name']} (Nexus)", repo["url"], auth=auth
     )
 
     if repo["remote"]:
         if repo["type"] == "docker":
-            remote_status, remote_redirected, remote_redirect_info = (
-                check_docker_remote(repo["name"], repo["remote"])
+            remote_status, remote_redirected, _ = check_docker_remote(
+                repo["name"], repo["remote"]
             )
         else:
-            remote_status, remote_redirected, remote_redirect_info = check_url_status(
+            remote_status, remote_redirected, _ = check_url_status(
                 f"{repo['name']} (remote)", repo["remote"], check_dns=True
             )
     else:
-        remote_status, remote_redirected, remote_redirect_info = (
-            "❌ (no remote URL)",
-            False,
-            "",
-        )
+        remote_status, remote_redirected = "❌ (no remote URL)", False
 
     return {
         "repo": repo,
         "nexus_status": nexus_status,
         "remote_status": remote_status,
         "redirected": nexus_redirected or remote_redirected,
-        "redirect_chain": " | ".join(
-            filter(None, [nexus_redirect_info, remote_redirect_info])
-        ),
     }
 
 
@@ -145,9 +134,6 @@ def update_all_metrics(statuses: list):
             remote_status=status["remote_status"],
             redirected=str(status["redirected"]).lower(),
         ).set(1 if healthy else 0)
-
-        if status["redirect_chain"]:
-            REDIRECT_INFO.info({repo["name"]: status["redirect_chain"]})
 
         logger.info(
             f"📦 Статус репозитория {repo['name']}: {'✅' if healthy else '❌'}"
@@ -183,6 +169,10 @@ def fetch_repositories_metrics(nexus_url: str, auth: tuple) -> list:
 
     for repo_type, count in type_counts.items():
         logger.info(f"📊 Репозиториев типа '{repo_type}': {count}")
+
+    REPO_COUNT.clear()
+    for repo_type, count in type_counts.items():
+        REPO_COUNT.labels(repo_type=repo_type).set(count)
 
     logger.info(
         f"📡 Получено {len(repos)} proxy-репозиториев. Начинаем проверку URL..."
