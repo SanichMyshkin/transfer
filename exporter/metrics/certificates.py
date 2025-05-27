@@ -62,7 +62,6 @@ def update_cert_match_metrics(nexus_url: str, auth: tuple):
                 best_level = level
                 best_cert_cn = cn
 
-        # Только одно метрика и лог
         if best_level > 0 and best_cert_cn:
             CERT_MATCH_STATUS.labels(
                 repo_name=name,
@@ -73,4 +72,15 @@ def update_cert_match_metrics(nexus_url: str, auth: tuple):
 
             logger.info(
                 f"✔️ Совпадение: Repo='{name}', URL='{remote}', CN='{best_cert_cn}', Уровень={best_level}"
+            )
+        else:
+            CERT_MATCH_STATUS.labels(
+                repo_name=name,
+                remote_url=remote,
+                subject_common_name="(none)",
+                match_level="0",
+            ).set(0)
+
+            logger.info(
+                f"⚠️ Нет совпадений: Repo='{name}', URL='{remote}' → ни один сертификат не подошёл"
             )
