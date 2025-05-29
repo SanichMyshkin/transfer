@@ -83,9 +83,10 @@ def update_metrics(blobstores: list) -> None:
             blob_quota=str(quota),
         ).set(blob["availableSpaceInBytes"])
 
-        BLOB_QUOTA.labels(
-            blob_name=blob.get('name')
-        ).set(int(quota))
+        if quota:
+            BLOB_QUOTA.labels(
+                blob_name=blob.get('name')
+            ).set(int(quota))
         
         logger.info(
             f"[{blob['name']}] used: {blob['totalSizeInBytes']} | "
