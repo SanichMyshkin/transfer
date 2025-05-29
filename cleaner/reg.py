@@ -115,12 +115,6 @@ def get_matching_rule(version, regex_rules, no_match_retention, no_match_reserve
     return "no-match", retention, no_match_reserved
 
 
-from collections import defaultdict
-from datetime import datetime, timezone, timedelta
-import logging
-from dateutil.parser import parse
-
-
 def filter_components_to_delete(
     components, regex_rules, max_retention, no_match_retention, no_match_reserved
 ):
@@ -214,9 +208,6 @@ def filter_components_to_delete(
 
     logging.info(f"🧹 Компонентов к удалению: {len(to_delete)}")
     return to_delete
-
-
-
 
 
 def clear_repository(repo_name, cfg):
