@@ -115,6 +115,7 @@ def get_matching_rule(version, regex_rules, no_match_retention, no_match_reserve
     return "no-match", retention, no_match_reserved
 
 
+
 def filter_components_to_delete(
     components, regex_rules, max_retention, no_match_retention, no_match_reserved
 ):
@@ -170,7 +171,7 @@ def filter_components_to_delete(
             retention = component.get("retention")
             reserved = component.get("reserved")
 
-            # 🔥 Удаляем, если превышен max_retention
+            # 1️⃣ max_retention проверяется всегда
             if max_retention is not None and age.days > max_retention:
                 logging.info(
                     f"🗑 К удалению (max_retention {max_retention} дн.): {name}:{version} (возраст: {age.days} дн.)"
@@ -178,36 +179,43 @@ def filter_components_to_delete(
                 to_delete.append(component)
                 continue
 
-            # 🧷 Проверка по retention (даже если зарезервирован)
-            if retention is not None and age > retention:
-                logging.info(
-                    f"🗑 К удалению по retention: {name}:{version} (возраст: {age.days} дн., лимит: {retention.days} дн.)"
-                )
-                to_delete.append(component)
-                continue
-
-            # 🔒 Зарезервированные — сохраняем
+            # 2️⃣ reserved — сохраняем N свежих
             if reserved is not None and i < reserved:
                 logging.info(
                     f"📦 Сохранён (резерв {reserved}): {name}:{version}, осталось мест: {reserved - (i + 1)}"
                 )
                 continue
 
-            # 🗑 Если не зарезервирован и retention не сработал — удалить
-            if reserved is not None and i >= reserved:
+            # 3️⃣ retention — если указано, и возраст > лимита
+            if retention is not None and age.days > retention.days:
                 logging.info(
-                    f"🗑 К удалению (вышел за пределы резерва {reserved}): {name}:{version}"
+                    f"🗑 К удалению по retention: {name}:{version} (возраст: {age.days} дн., лимит: {retention.days} дн.)"
                 )
                 to_delete.append(component)
                 continue
 
-            # 🟢 Всё остальное сохраняется
-            logging.info(
-                f"📦 Сохранён: {name}:{version} — ни retention, ни reserved не заданы"
-            )
+            # 4️⃣ по умолчанию, если нет retention, но зарезервирован не входит
+            if reserved is not None and i >= reserved:
+                logging.info(
+                    f"🗑 К удалению (вышел за пределы резерва {reserved}) по правилу({pattern}): {name}:{version}"
+                )
+                to_delete.append(component)
+                continue
+
+            # 5️⃣ иначе логируем причину сохранения
+            if retention is not None:
+                logging.info(
+                    f"📦 Сохранён по retention: {name}:{version} (возраст: {age.days} дн., лимит: {retention.days} дн.)"
+                )
+            else:
+                logging.info(
+                    f"📦 Сохранён: {name}:{version} — Ни один параметр удаления не задан"
+                )
 
     logging.info(f"🧹 Компонентов к удалению: {len(to_delete)}")
     return to_delete
+
+
 
 
 def clear_repository(repo_name, cfg):
