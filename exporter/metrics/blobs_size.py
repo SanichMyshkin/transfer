@@ -19,6 +19,13 @@ BLOB_STORAGE_USAGE = Gauge(
     ["blob_name", "metric_type", "blob_type", "blob_count", "blob_quota"],
 )
 
+BLOB_QUOTA = Gauge(
+    "nexus_blob_quota",
+    "The quota allocated for each blob",
+    ["blob_name"],
+)
+
+
 
 def get_blobstores(nexus_url: str, auth: tuple) -> list | None:
     """Получает список blobstores из Nexus API."""
@@ -56,6 +63,7 @@ def get_quota(data: dict):
 def update_metrics(blobstores: list) -> None:
     """Обновляет метрики Prometheus по полученным blobstores."""
     BLOB_STORAGE_USAGE.clear()
+    BLOB_QUOTA.clear()
     for blob in blobstores:
         quota = get_quota(blob)
 
@@ -75,6 +83,10 @@ def update_metrics(blobstores: list) -> None:
             blob_quota=str(quota),
         ).set(blob["availableSpaceInBytes"])
 
+        BLOB_QUOTA.labels(
+            blob_name=blob.get('name')
+        ).set(int(quota))
+        
         logger.info(
             f"[{blob['name']}] used: {blob['totalSizeInBytes']} | "
             f"available: {blob['availableSpaceInBytes']} | "
