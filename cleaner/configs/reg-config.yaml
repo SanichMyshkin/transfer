@@ -1,0 +1,19 @@
+repo_names:
+  - test1
+
+regex_rules:
+  "^dev-.*":
+    #retention_days: 7
+    reserved: 2
+  "^release-.*":
+    retention_days: 8
+    #reserved: 3
+
+# Для всех, кто не попал под regex_rules
+no_match_retention_days: 10
+#no_match_reserved: 1
+
+# Глобальное ограничение возраста (дней), применимо ко всем
+max_retention_days: 180
+
+dry_run: true
