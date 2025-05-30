@@ -18,7 +18,6 @@ PASSWORD = os.getenv("PASSWORD")
 BASE_URL = os.getenv("BASE_URL")
 
 log_filename = os.path.join(os.path.dirname(__file__), "logs", "cleaner.log")
-
 os.makedirs(os.path.dirname(log_filename), exist_ok=True)
 
 file_handler = TimedRotatingFileHandler(
@@ -40,7 +39,7 @@ def load_config(path):
         with open(path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
     except Exception as e:
-        logging.error(f"❌ Ошибка загрузки конфига '{path}': {e}")
+        logging.error(f"[LOAD] ❌ Ошибка загрузки конфига '{path}': {e}")
         return None
 
 
@@ -61,13 +60,15 @@ def get_repository_components(repo_name):
             response.raise_for_status()
             data = response.json()
         except requests.exceptions.RequestException as e:
-            logging.error(f"❌ Ошибка при получении компонентов '{repo_name}': {e}")
+            logging.error(
+                f"[API] ❌ Ошибка при получении компонентов '{repo_name}': {e}"
+            )
             return []
 
         items = data.get("items")
 
         if not items and not components:
-            logging.info(f"ℹ️ В репозитории '{repo_name}' нет компонентов для обработки")
+            logging.info(f"[API] ℹ️ Репозиторий '{repo_name}' пуст")
             return []
 
         components.extend(items)
@@ -82,7 +83,7 @@ def get_repository_components(repo_name):
 def delete_component(component_id, component_name, component_version, dry_run):
     if dry_run:
         logging.info(
-            f"🧪 [DRY_RUN] Пропущено удаление: {component_name} (версия {component_version}, ID: {component_id})"
+            f"[DELETE] 🧪 [DRY_RUN] Пропущено удаление: {component_name}:{component_version} (ID: {component_id})"
         )
         return
 
@@ -93,10 +94,10 @@ def delete_component(component_id, component_name, component_version, dry_run):
         )
         response.raise_for_status()
         logging.info(
-            f"✅ Удалён образ: {component_name} (версия {component_version}, ID: {component_id})"
+            f"[DELETE] ✅ Удалён: {component_name}:{component_version} (ID: {component_id})"
         )
     except requests.exceptions.RequestException as e:
-        logging.error(f"❌ Ошибка при удалении компонента {component_id}: {e}")
+        logging.error(f"[DELETE] ❌ Ошибка при удалении {component_id}: {e}")
 
 
 def get_matching_rule(version, regex_rules, no_match_retention, no_match_reserved):
@@ -113,7 +114,6 @@ def get_matching_rule(version, regex_rules, no_match_retention, no_match_reserve
         timedelta(days=no_match_retention) if no_match_retention is not None else None
     )
     return "no-match", retention, no_match_reserved
-
 
 
 def filter_components_to_delete(
@@ -141,9 +141,7 @@ def filter_components_to_delete(
             continue
 
         if version.lower() == "latest":
-            logging.info(
-                f"🔒 Пропущен тег {version}: {name}:{version} — иммунитет от удаления"
-            )
+            logging.info(f" 🔒 Защищён от удаления: {name}:{version}")
             continue
 
         pattern, retention, reserved = get_matching_rule(
@@ -171,57 +169,55 @@ def filter_components_to_delete(
             retention = component.get("retention")
             reserved = component.get("reserved")
 
-            # 1️⃣ max_retention проверяется всегда
             if max_retention is not None and age.days > max_retention:
                 logging.info(
-                    f"🗑 К удалению (max_retention {max_retention} дн.): {name}:{version} (возраст: {age.days} дн.)"
+                    f" 🗑 max_retention: {name}:{version} (возраст {age.days} дн. > {max_retention})"
                 )
                 to_delete.append(component)
                 continue
 
-            # 2️⃣ reserved — сохраняем N свежих
             if reserved is not None and i < reserved:
                 logging.info(
-                    f"📦 Сохранён (резерв {reserved}): {name}:{version}, осталось мест: {reserved - (i + 1)}"
+                    f" 📦 Зарезервирован: {name}:{version} (позиция {i + 1}/{reserved})"
                 )
                 continue
 
-            # 3️⃣ retention — если указано, и возраст > лимита
             if retention is not None and age.days > retention.days:
                 logging.info(
-                    f"🗑 К удалению по retention: {name}:{version} (возраст: {age.days} дн., лимит: {retention.days} дн.)"
+                    f" 🗑 retention: {name}:{version} (возраст {age.days} дн. > {retention.days})"
                 )
                 to_delete.append(component)
                 continue
 
-            # 4️⃣ по умолчанию, если нет retention, но зарезервирован не входит
             if reserved is not None and i >= reserved:
                 logging.info(
-                    f"🗑 К удалению (вышел за пределы резерва {reserved}) по правилу({pattern}): {name}:{version}"
+                    f" 🗑 вне резерва: {name}:{version} (позиция {i + 1}, резерв {reserved})"
                 )
                 to_delete.append(component)
                 continue
 
-            # 5️⃣ иначе логируем причину сохранения
             if retention is not None:
                 logging.info(
-                    f"📦 Сохранён по retention: {name}:{version} (возраст: {age.days} дн., лимит: {retention.days} дн.)"
+                    f" 📦 Сохранён по retention: {name}:{version} (возраст {age.days} дн. <= {retention.days})"
                 )
             else:
                 logging.info(
-                    f"📦 Сохранён: {name}:{version} — Ни один параметр удаления не задан"
+                    f" 📦 Сохранён: {name}:{version} — нет правил удаления"
                 )
 
-    logging.info(f"🧹 Компонентов к удалению: {len(to_delete)}")
+    logging.info(f" 🧹 Обнаружено к удалению: {len(to_delete)} компонент(ов)")
     return to_delete
 
 
-
-
 def clear_repository(repo_name, cfg):
-    logging.info(f"🔄 Начало очистки репозитория '{repo_name}'")
+    session_id = datetime.now().strftime("%Y%m%d-%H%M%S")
+    logging.info(f"\n🔄 [{session_id}] Начало очистки репозитория: {repo_name}")
+
     components = get_repository_components(repo_name)
     if not components:
+        logging.info(
+            f"[{session_id}] Репозиторий '{repo_name}' не содержит компонентов"
+        )
         return
 
     to_delete = filter_components_to_delete(
@@ -233,12 +229,10 @@ def clear_repository(repo_name, cfg):
     )
 
     if not to_delete:
-        logging.info(f"✅ Нет компонентов для удаления в репозитории '{repo_name}'")
+        logging.info(f"[{session_id}] ✅ Нет компонентов для удаления в '{repo_name}'")
         return
 
-    logging.info(
-        f"🚮 Удаляется {len(to_delete)} компонент(ов) из репозитория '{repo_name}'"
-    )
+    logging.info(f"🚮 Удаление {len(to_delete)} компонент(ов)...")
     for component in to_delete:
         delete_component(
             component["id"],
@@ -253,12 +247,12 @@ def main():
     config_files = [f for f in os.listdir(config_dir) if f.endswith(".yaml")]
 
     if not config_files:
-        logging.warning("⚠️ В папке 'configs/' не найдено ни одного YAML-файла")
+        logging.warning("[MAIN] ⚠️ В папке 'configs/' нет YAML-файлов")
         return
 
     for cfg_file in config_files:
         full_path = os.path.join(config_dir, cfg_file)
-        logging.info(f"📄 Обработка конфига: {cfg_file}")
+        logging.info(f"\n📄 Обработка файла конфигурации: {cfg_file}")
         config = load_config(full_path)
         if not config:
             continue
