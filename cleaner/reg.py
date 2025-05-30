@@ -171,38 +171,38 @@ def filter_components_to_delete(
 
             if max_retention is not None and age.days > max_retention:
                 logging.info(
-                    f" 🗑 max_retention: {name}:{version} (возраст {age.days} дн. > {max_retention})"
+                    f" 🗑 max_retention: {name}:{version} | правило - ({pattern}) (возраст {age.days} дн. > {max_retention})"
                 )
                 to_delete.append(component)
                 continue
 
             if reserved is not None and i < reserved:
                 logging.info(
-                    f" 📦 Зарезервирован: {name}:{version} (позиция {i + 1}/{reserved})"
+                    f" 📦 Зарезервирован: {name}:{version} | правило - ({pattern}) (позиция {i + 1}/{reserved})"
                 )
                 continue
 
             if retention is not None and age.days > retention.days:
                 logging.info(
-                    f" 🗑 retention: {name}:{version} (возраст {age.days} дн. > {retention.days})"
+                    f" 🗑 retention: {name}:{version} | правило - ({pattern}) (возраст {age.days} дн. > {retention.days})"
                 )
                 to_delete.append(component)
                 continue
 
             if reserved is not None and i >= reserved:
                 logging.info(
-                    f" 🗑 вне резерва: {name}:{version} (позиция {i + 1}, резерв {reserved})"
+                    f" 🗑 вне резерва: {name}:{version} | правило - ({pattern}) (позиция {i + 1}, резерв {reserved})"
                 )
                 to_delete.append(component)
                 continue
 
             if retention is not None:
                 logging.info(
-                    f" 📦 Сохранён по retention: {name}:{version} (возраст {age.days} дн. <= {retention.days})"
+                    f" 📦 Сохранён по retention: {name}:{version} | правило - ({pattern}) (возраст {age.days} дн. <= {retention.days})"
                 )
             else:
                 logging.info(
-                    f" 📦 Сохранён: {name}:{version} — нет правил удаления"
+                    f" 📦 Сохранён: {name}:{version} — нет правил удаления ({pattern})"
                 )
 
     logging.info(f" 🧹 Обнаружено к удалению: {len(to_delete)} компонент(ов)")

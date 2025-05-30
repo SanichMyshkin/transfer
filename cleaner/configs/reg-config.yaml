@@ -6,10 +6,10 @@ regex_rules:
     retention_days: 7
     #reserved: 2
 
-  "^release.*":
+  "^release-.*":
     #retention_days: 1
     reserved: 3
-  "^test-.*":
+  ".*world.*":
     retention_days: 8
     reserved: 3
 
