@@ -33,6 +33,7 @@ logging.basicConfig(
     ],
 )
 
+
 def load_config(path):
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -40,6 +41,7 @@ def load_config(path):
     except Exception as e:
         logging.error(f"[LOAD] ❌ Ошибка загрузки конфига '{path}': {e}")
         return None
+
 
 def get_repository_components(repo_name):
     components = []
@@ -77,6 +79,7 @@ def get_repository_components(repo_name):
 
     return components
 
+
 def delete_component(component_id, component_name, component_version, dry_run):
     if dry_run:
         logging.info(
@@ -93,32 +96,52 @@ def delete_component(component_id, component_name, component_version, dry_run):
         logging.info(
             f"[DELETE] ✅ Удалён: {component_name}:{component_version} (ID: {component_id})"
         )
+    except requests.exceptions.HTTPError as e:
+        if response.status_code == 404:
+            logging.warning(
+                f"[DELETE] ⚠️ Компонент не найден (404): {component_name}:{component_version} (ID: {component_id})"
+            )
+        else:
+            logging.error(f"[DELETE] ❌ Ошибка HTTP при удалении {component_id}: {e}")
     except requests.exceptions.RequestException as e:
         logging.error(f"[DELETE] ❌ Ошибка при удалении {component_id}: {e}")
 
-def get_matching_rule(version, regex_rules, no_match_retention, no_match_reserved):
+
+def get_matching_rule(
+    version,
+    regex_rules,
+    no_match_retention,
+    no_match_reserved,
+    no_match_min_days_since_last_download,
+):
     version_lower = version.lower()
     for pattern, rules in regex_rules.items():
         if re.match(pattern, version_lower):
             retention_days = rules.get("retention_days")
             reserved = rules.get("reserved")
-            last_download_days = rules.get("last_download")
+            min_days_since_last_download = rules.get("min_days_since_last_download")
             retention = (
                 timedelta(days=retention_days) if retention_days is not None else None
             )
-            last_download = (
-                timedelta(days=last_download_days)
-                if last_download_days is not None
-                else None
-            )
-            return pattern, retention, reserved, last_download
+            return pattern, retention, reserved, min_days_since_last_download
     retention = (
         timedelta(days=no_match_retention) if no_match_retention is not None else None
     )
-    return "no-match", retention, no_match_reserved, None
+    return (
+        "no-match",
+        retention,
+        no_match_reserved,
+        no_match_min_days_since_last_download,
+    )
+
 
 def filter_components_to_delete(
-    components, regex_rules, max_retention, no_match_retention, no_match_reserved
+    components,
+    regex_rules,
+    max_retention,
+    no_match_retention,
+    no_match_reserved,
+    no_match_min_days_since_last_download,
 ):
     now_utc = datetime.now(timezone.utc) + timedelta(seconds=1)
     grouped = defaultdict(list)
@@ -130,8 +153,13 @@ def filter_components_to_delete(
         if not assets or not version or not name:
             continue
 
-        last_modified_strs = [a.get("lastModified") for a in assets if a.get("lastModified")]
-        last_downloaded_strs = [a.get("lastDownloaded") for a in assets if a.get("lastDownloaded")]
+        last_modified_strs = [
+            a.get("lastModified") for a in assets if a.get("lastModified")
+        ]
+        last_download_strs = [
+            a.get("lastDownloaded") for a in assets if a.get("lastDownloaded")
+        ]
+
         if not last_modified_strs:
             continue
 
@@ -140,29 +168,33 @@ def filter_components_to_delete(
         except Exception:
             continue
 
-        last_downloaded = None
-        try:
-            if last_downloaded_strs:
-                last_downloaded = max(parse(s) for s in last_downloaded_strs)
-        except Exception:
-            pass
+        last_download = None
+        if last_download_strs:
+            try:
+                last_download = max(parse(s) for s in last_download_strs)
+            except Exception:
+                pass
 
         if version.lower() == "latest":
             logging.info(f" 🔒 Защищён от удаления: {name}:{version}")
             continue
 
-        pattern, retention, reserved, last_download = get_matching_rule(
-            version, regex_rules, no_match_retention, no_match_reserved
+        pattern, retention, reserved, min_days_since_last_download = get_matching_rule(
+            version,
+            regex_rules,
+            no_match_retention,
+            no_match_reserved,
+            no_match_min_days_since_last_download,
         )
 
         component.update(
             {
                 "last_modified": last_modified,
-                "last_downloaded": last_downloaded,
+                "last_download": last_download,
                 "retention": retention,
                 "reserved": reserved,
                 "pattern": pattern,
-                "last_download": last_download,
+                "min_days_since_last_download": min_days_since_last_download,
             }
         )
         grouped[(name, pattern)].append(component)
@@ -175,11 +207,12 @@ def filter_components_to_delete(
         for i, component in enumerate(sorted_group):
             version = component.get("version", "Без версии")
             age = now_utc - component["last_modified"]
-            last_dl = component.get("last_download")
-            last_downloaded = component.get("last_downloaded")
+            last_download = component.get("last_download")
             retention = component.get("retention")
             reserved = component.get("reserved")
+            min_days_since_last_download = component.get("min_days_since_last_download")
 
+            # Приоритет 1: max_retention_days - удаляем без условий
             if max_retention is not None and age.days > max_retention:
                 logging.info(
                     f" 🗑 max_retention: {name}:{version} | правило - ({pattern}) (возраст {age.days} дн. > {max_retention})"
@@ -187,54 +220,42 @@ def filter_components_to_delete(
                 to_delete.append(component)
                 continue
 
+            # Приоритет 2: reserved — сохраняем последние N
             if reserved is not None and i < reserved:
                 logging.info(
                     f" 📦 Зарезервирован: {name}:{version} | правило - ({pattern}) (позиция {i + 1}/{reserved})"
                 )
                 continue
 
-            if last_dl and last_downloaded:
-                download_age = now_utc - last_downloaded
-                if download_age.days <= last_dl.days:
+            # Приоритет 3: min_days_since_last_download + retention_days
+            if last_download and min_days_since_last_download is not None:
+                since_download = (now_utc - last_download).days
+                if since_download < min_days_since_last_download:
                     logging.info(
-                        f" 📦 Сохранён по last_download: {name}:{version} | правило - ({pattern}) (последняя загрузка {download_age.days} дн. <= {last_dl.days})"
+                        f" 📦 Использовался недавно: {name}:{version} | правило - ({pattern}) (скачивали {since_download} дн. назад < {min_days_since_last_download})"
                     )
                     continue
 
-            if retention is not None and age.days > retention.days:
-                logging.info(
-                    f" 🗑 retention: {name}:{version} | правило - ({pattern}) (возраст {age.days} дн. > {retention.days})"
-                )
+            if retention and age.days > retention.days:
+                logging.info(f" 🗑 Удаление: {name}:{version} | правило - ({pattern})")
                 to_delete.append(component)
                 continue
 
-            if reserved is not None and i >= reserved:
-                logging.info(
-                    f" 🗑 вне резерва: {name}:{version} | правило - ({pattern}) (позиция {i + 1}, резерв {reserved})"
-                )
-                to_delete.append(component)
-                continue
-
-            if retention is not None:
-                logging.info(
-                    f" 📦 Сохранён по retention: {name}:{version} | правило - ({pattern}) (возраст {age.days} дн. <= {retention.days})"
-                )
-            else:
-                logging.info(
-                    f" 📦 Сохранён: {name}:{version} — нет правил удаления ({pattern})"
-                )
+            # Иначе сохраняем
+            logging.info(f" 📦 Сохранён: {name}:{version} | правило - ({pattern})")
 
     logging.info(f" 🧹 Обнаружено к удалению: {len(to_delete)} компонент(ов)")
     return to_delete
 
+
+
 def clear_repository(repo_name, cfg):
-    session_id = datetime.now().strftime("%Y%m%d-%H%M%S")
-    logging.info(f"\n🔄 [{session_id}] Начало очистки репозитория: {repo_name}")
+    logging.info(f"\n🔄 Начало очистки репозитория: {repo_name}")
 
     components = get_repository_components(repo_name)
     if not components:
         logging.info(
-            f"[{session_id}] Репозиторий '{repo_name}' не содержит компонентов"
+            f"Репозиторий '{repo_name}' не содержит компонентов"
         )
         return
 
@@ -244,10 +265,13 @@ def clear_repository(repo_name, cfg):
         max_retention=cfg.get("max_retention_days"),
         no_match_retention=cfg.get("no_match_retention_days"),
         no_match_reserved=cfg.get("no_match_reserved", None),
+        no_match_min_days_since_last_download=cfg.get(
+            "no_match_min_days_since_last_download", None
+        ),
     )
 
     if not to_delete:
-        logging.info(f"[{session_id}] ✅ Нет компонентов для удаления в '{repo_name}'")
+        logging.info(f"✅ Нет компонентов для удаления в '{repo_name}'")
         return
 
     logging.info(f"🚮 Удаление {len(to_delete)} компонент(ов)...")
@@ -258,6 +282,7 @@ def clear_repository(repo_name, cfg):
             component.get("version", "Без версии"),
             cfg.get("dry_run", False),
         )
+
 
 def main():
     config_dir = os.path.join(os.path.dirname(__file__), "configs")
@@ -276,6 +301,7 @@ def main():
         repos = config.get("repo_names", [])
         for repo in repos:
             clear_repository(repo, config)
+
 
 if __name__ == "__main__":
     main()
