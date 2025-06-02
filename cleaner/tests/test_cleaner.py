@@ -1,6 +1,6 @@
 import pytest
 from datetime import datetime, timedelta, timezone
-from new_download import filter_components_to_delete
+from cleaner import filter_components_to_delete
 
 NOW = datetime(2025, 1, 1, tzinfo=timezone.utc)
 
