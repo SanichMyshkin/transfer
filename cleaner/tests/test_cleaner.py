@@ -1,4 +1,4 @@
-import pytest
+from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 from cleaner import filter_components_to_delete
 
@@ -34,7 +34,7 @@ def test_all_rules_applied():
         }
     }
     to_delete = filter_components_to_delete(
-        components, regex_rules, max_retention=180,
+        components, regex_rules,
         no_match_retention=12, no_match_reserved=1,
         no_match_min_days_since_last_download=2
     )
@@ -42,14 +42,14 @@ def test_all_rules_applied():
     assert to_delete[0]["version"] == "dev-1"
 
 
-# 2. Проверка max_retention (обходит retention)
-def test_max_retention_applies():
+# 2. Проверка retention с no_match_retention
+def test_retention_applies_no_match():
     components = [
         make_component("any", "v1", days_old=200, last_download_days=100)
     ]
     to_delete = filter_components_to_delete(
-        components, {}, max_retention=180,
-        no_match_retention=300, no_match_reserved=0,
+        components, {}, 
+        no_match_retention=180, no_match_reserved=0,
         no_match_min_days_since_last_download=1
     )
     assert len(to_delete) == 1
@@ -58,24 +58,22 @@ def test_max_retention_applies():
 # 3. Только reserved
 def test_only_reserved():
     components = [
-        make_component("lib", "r1", 5),
-        make_component("lib", "r2", 10),
+        make_component("lib", "r1", 5),   # свежий
+        make_component("lib", "r2", 10),  # старше — должен быть удалён
     ]
     regex_rules = {
         "^r.*": {"reserved": 1}
     }
     to_delete = filter_components_to_delete(
         components, regex_rules,
-        max_retention=180,
-        no_match_retention=300,
-        no_match_reserved=0,
-        no_match_min_days_since_last_download=0
+        no_match_retention=None,                  
+        no_match_reserved=None,
+        no_match_min_days_since_last_download=None
     )
-    # reserved=1 → сохраняется только r1 (свежее)
-    # остальные (r2) не удаляются, потому что нет retention/min_download
-    # → итог: ничего не удаляется
-    assert len(to_delete) == 0
-
+    # reserved=1 → сохраняется только r1 (самый свежий)
+    # r2 должен быть удалён
+    assert len(to_delete) == 1
+    assert to_delete[0]["version"] == "r2"
 
 
 # 4. Только retention
@@ -85,7 +83,7 @@ def test_only_retention():
         ".*": {"retention_days": 10}
     }
     to_delete = filter_components_to_delete(
-        components, regex_rules, max_retention=180,
+        components, regex_rules,
         no_match_retention=300, no_match_reserved=0,
         no_match_min_days_since_last_download=0
     )
@@ -99,11 +97,12 @@ def test_only_min_days_since_last_download():
         ".*": {"min_days_since_last_download": 3}
     }
     to_delete = filter_components_to_delete(
-        components, regex_rules, max_retention=180,
-        no_match_retention=300, no_match_reserved=0,
+        components, regex_rules,
+        no_match_retention=300,
+        no_match_reserved=0,
         no_match_min_days_since_last_download=0
     )
-    assert len(to_delete) == 0
+    assert len(to_delete) == 1
 
 
 # 6. Retention + reserved
@@ -116,7 +115,7 @@ def test_retention_and_reserved():
         ".*": {"retention_days": 10, "reserved": 1}
     }
     to_delete = filter_components_to_delete(
-        components, regex_rules, max_retention=180,
+        components, regex_rules,
         no_match_retention=12, no_match_reserved=1,
         no_match_min_days_since_last_download=1
     )
@@ -131,7 +130,7 @@ def test_retention_and_min_download():
         ".*": {"retention_days": 5, "min_days_since_last_download": 7}
     }
     to_delete = filter_components_to_delete(
-        components, regex_rules, max_retention=180,
+        components, regex_rules,
         no_match_retention=20, no_match_reserved=0,
         no_match_min_days_since_last_download=1
     )
@@ -141,29 +140,21 @@ def test_retention_and_min_download():
 # 8. Reserved + min_days_since_last_download
 def test_reserved_and_min_download():
     comps = [
-        make_component("lib", "v1", 5, 1),   # lastModified=5d ago, lastDownloaded=1d ago
-        make_component("lib", "v2", 10, 10)  # lastModified=10d ago, lastDownloaded=10d ago
+        make_component("lib", "v1", 5, 1),   # в reserved — сохраняется
+        make_component("lib", "v2", 10, 10)  # не в reserved, скачан 10 дней назад → удаляется
     ]
     rules = {".*": {"reserved": 1, "min_days_since_last_download": 3}}
 
-    deleted = filter_components_to_delete(comps, rules, 180, 10, 0, 0)
+    deleted = filter_components_to_delete(comps, rules, 10, 0, 0)
 
-    # По логике:
-    # v1 — попадает в reserved (первый, свежий) → всегда сохраняем
-    # v2 — не попал в reserved, но скачивался 10дн назад
-    # min_days = 3 → скачивали позже → просто НЕ сохраняем, но и НЕ удаляем (нет retention)
-
-    assert [d["version"] for d in deleted] == []
-
-
+    assert [d["version"] for d in deleted] == ["v2"]
 
 
 # 9. Не удаляется latest
 def test_latest_not_deleted():
     components = [make_component("lib", "latest", 100)]
     to_delete = filter_components_to_delete(
-        components, {}, max_retention=180,
-        no_match_retention=1, no_match_reserved=0,
+        components, {}, no_match_retention=1, no_match_reserved=0,
         no_match_min_days_since_last_download=0
     )
     assert len(to_delete) == 0
@@ -173,7 +164,8 @@ def test_latest_not_deleted():
 def test_ignore_no_assets():
     c = {"id": "1", "name": "lib", "version": "v1", "assets": []}
     to_delete = filter_components_to_delete(
-        [c], {}, 180, 10, 0, 0
+        [c], {}, no_match_retention=10, no_match_reserved=0,
+        no_match_min_days_since_last_download=0
     )
     assert len(to_delete) == 0
 
@@ -182,7 +174,8 @@ def test_ignore_no_assets():
 def test_ignore_no_last_modified():
     c = {"id": "1", "name": "lib", "version": "v1", "assets": [{}]}
     to_delete = filter_components_to_delete(
-        [c], {}, 180, 10, 0, 0
+        [c], {}, no_match_retention=10, no_match_reserved=0,
+        no_match_min_days_since_last_download=0
     )
     assert len(to_delete) == 0
 
@@ -193,7 +186,8 @@ def test_ignore_missing_name_version():
     c.pop("name")
     c.pop("version")
     to_delete = filter_components_to_delete(
-        [c], {}, 180, 10, 0, 0
+        [c], {}, no_match_retention=10, no_match_reserved=0,
+        no_match_min_days_since_last_download=0
     )
     assert len(to_delete) == 0
 
@@ -210,9 +204,12 @@ def test_grouping_by_name_and_pattern():
         "^rel-.*": {"reserved": 1},
     }
     to_delete = filter_components_to_delete(
-        components, regex_rules, 180, 12, 0, 0
+        components, regex_rules, no_match_retention=12, no_match_reserved=0,
+        no_match_min_days_since_last_download=0
     )
-    assert len(to_delete) == 2
+    assert len(to_delete) == 1
+    assert to_delete[0]["version"] == "dev-2"
+
 
 
 # 14. Без lastDownloaded, есть min_days_since_last_download
@@ -222,7 +219,8 @@ def test_missing_last_download_with_min_days_rule():
         ".*": {"retention_days": 10, "min_days_since_last_download": 1}
     }
     to_delete = filter_components_to_delete(
-        components, regex_rules, 180, 12, 0, 0
+        components, regex_rules, no_match_retention=12, no_match_reserved=0,
+        no_match_min_days_since_last_download=0
     )
     assert len(to_delete) == 1
 
@@ -231,7 +229,7 @@ def test_missing_last_download_with_min_days_rule():
 def test_no_match_retention():
     components = [make_component("lib", "nomatch", 15, 10)]
     to_delete = filter_components_to_delete(
-        components, {}, 180, no_match_retention=5,
+        components, {}, no_match_retention=5,
         no_match_reserved=0, no_match_min_days_since_last_download=0
     )
     assert len(to_delete) == 1
@@ -244,10 +242,38 @@ def test_no_match_reserved_protection():
         make_component("lib", "b", 15),
     ]
     to_delete = filter_components_to_delete(
-        components, {}, 180,
+        components, {},
         no_match_retention=5,
         no_match_reserved=1,
         no_match_min_days_since_last_download=0
     )
     assert len(to_delete) == 1
     assert to_delete[0]["version"] == "b"
+
+
+# 17. Удаляется только после строго min_days_since_last_download
+
+
+@patch("cleaner.datetime")
+def test_strict_min_days_since_last_download(mock_datetime):
+    fixed_now = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    mock_datetime.now.return_value = fixed_now
+    mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)  # чтобы parse работал корректно
+    mock_datetime.timezone = timezone
+
+    components = [
+        make_component("lib", "v1", 10, last_download_days=3),
+        make_component("lib", "v2", 10, last_download_days=4),
+    ]
+    regex_rules = {
+        ".*": {"min_days_since_last_download": 3}
+    }
+    to_delete = filter_components_to_delete(
+        components, regex_rules,
+        no_match_retention=300,
+        no_match_reserved=0,
+        no_match_min_days_since_last_download=3
+    )
+    assert len(to_delete) == 1
+    assert to_delete[0]["version"] == "v2"
+
