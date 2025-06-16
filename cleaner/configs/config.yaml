@@ -2,19 +2,28 @@ repo_names:
   - test1
 
 regex_rules:
-  "^dev-.*":
-    retention_days: 7
-    #reserved: 2
+  "dev-.*":
+    # retention_days: 7
+    reserved: 2
+
+  "dev-latest.*":
+    min_days_since_last_download: 1
+
+
+
   "^release-.*":
     #retention_days: 1
     reserved: 1
-  ".*world.*":
+
+  "^test.*":
     retention_days: 8
     reserved: 1
     min_days_since_last_download: 1
+  
+
 
 # Для всех, кто не попал под regex_rules
-#no_match_retention_days: 12
+no_match_retention_days: 12
 no_match_reserved: 1
 no_match_min_days_since_last_download: 2
 

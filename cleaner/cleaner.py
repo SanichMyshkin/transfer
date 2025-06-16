@@ -115,15 +115,27 @@ def get_matching_rule(
     no_match_min_days_since_last_download,
 ):
     version_lower = version.lower()
+    matched_rules = []
+
     for pattern, rules in regex_rules.items():
         if re.match(pattern, version_lower):
-            retention_days = rules.get("retention_days")
-            reserved = rules.get("reserved")
-            min_days_since_last_download = rules.get("min_days_since_last_download")
-            retention = (
-                timedelta(days=retention_days) if retention_days is not None else None
-            )
-            return pattern, retention, reserved, min_days_since_last_download
+            matched_rules.append((pattern, rules))
+
+    if matched_rules:
+        # Выбираем наиболее "длинный" паттерн (наиболее специфичный)
+        best_match = max(matched_rules, key=lambda x: len(x[0]))
+        pattern, rules = best_match
+
+        retention_days = rules.get("retention_days")
+        reserved = rules.get("reserved")
+        min_days_since_last_download = rules.get("min_days_since_last_download")
+        retention = (
+            timedelta(days=retention_days) if retention_days is not None else None
+        )
+
+        return pattern, retention, reserved, min_days_since_last_download
+
+    # Нет совпадений — возвращаем default
     retention = (
         timedelta(days=no_match_retention) if no_match_retention is not None else None
     )
@@ -133,6 +145,7 @@ def get_matching_rule(
         no_match_reserved,
         no_match_min_days_since_last_download,
     )
+
 
 
 def filter_components_to_delete(
@@ -215,7 +228,9 @@ def filter_components_to_delete(
                     f" 📦 Зарезервирован: {name}:{version} | правило ({pattern}) (позиция {i + 1}/{reserved})"
                 )
                 continue
-
+            ### TEST
+            #logging.info(f"DEBUG: {name}:{version} | last_download = {last_download}, min_days_since_last_download = {min_days_since_last_download}")
+            
             if last_download and min_days_since_last_download is not None:
                 since_download = (now_utc - last_download).days
                 if since_download <= min_days_since_last_download:
