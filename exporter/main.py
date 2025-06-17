@@ -2,7 +2,7 @@ import time
 import logging
 
 from config import get_auth
-from config import NEXUS_API_URL, LAUNCH_INTERVAL
+from config import NEXUS_API_URL, LAUNCH_INTERVAL, REPO_METRICS_INTERVAL
 
 from prometheus_client import start_http_server
 
@@ -13,7 +13,6 @@ from metrics.blobs_size import fetch_blob_metrics
 from metrics.docker_tags import fetch_docker_tags_metrics
 from metrics.tasks import fetch_task_metrics
 from metrics.docker_ports import fetch_docker_ports_metrics
-from metrics.certificates import update_cert_match_metrics
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(module)s - %(message)s"
@@ -27,9 +26,19 @@ def main():
 
     logger.info("Метрики VictoriaMetrics доступны на :8000")
 
+    # Запускаем сбор метрик репозиториев сразу
+    logger.info("Первичный запуск сбора статуса репозиториев типа Proxy...")
+    fetch_repositories_metrics(NEXUS_API_URL, auth)
+    last_repo_metrics_time = time.time()
+
     while True:
-        logger.info("Запуск сбора статуса репозиториев типа Proxy...")
-        fetch_repositories_metrics(NEXUS_API_URL, auth)
+        current_time = time.time()
+
+
+        if current_time - last_repo_metrics_time >= REPO_METRICS_INTERVAL:
+            logger.info("Периодический запуск сбора статуса репозиториев типа Proxy...")
+            fetch_repositories_metrics(NEXUS_API_URL, auth)
+            last_repo_metrics_time = current_time
 
         logger.info("Запуск сбора размера блобов...")
         fetch_blob_metrics(NEXUS_API_URL, auth)
@@ -48,9 +57,6 @@ def main():
 
         logger.info("Запуск сбора Docker портов...")
         fetch_docker_ports_metrics()
-
-        logger.info("Запуск сбора SSL сертификатов из Truststore...")
-        update_cert_match_metrics(NEXUS_API_URL, auth)
 
         time.sleep(LAUNCH_INTERVAL)
 
