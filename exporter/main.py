@@ -33,8 +33,7 @@ def main():
 
     while True:
         current_time = time.time()
-
-
+        
         if current_time - last_repo_metrics_time >= REPO_METRICS_INTERVAL:
             logger.info("Периодический запуск сбора статуса репозиториев типа Proxy...")
             fetch_repositories_metrics(NEXUS_API_URL, auth)
