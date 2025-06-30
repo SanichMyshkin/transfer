@@ -2,7 +2,7 @@ import logging
 
 from prometheus_client import Gauge
 from database.repository_query import get_repository_sizes, get_repository_data
-from metrics.tasks import filter_blobstore_tasks
+from metrics.tasks import filter_blobstore_tasks_presence_only  # ✅ заменили
 
 # Настройка логирования
 logging.basicConfig(
@@ -43,17 +43,19 @@ def fetch_repository_metrics(task_data: dict) -> list:
         repo["size"] = repo_size.get(repo.get("repository_name"), 0)
 
     try:
-        task_statuses = filter_blobstore_tasks(task_data)
+        # ✅ Получаем только информацию о наличии задач
+        task_statuses = filter_blobstore_tasks_presence_only(task_data)
     except Exception as e:
         logger.error(f"❌ Ошибка при обработке задач blobstore: {e}")
         task_statuses = {}
 
-    # Очищаем метрики перед их обновлением
+    # Очищаем метрики перед обновлением
     REPO_STORAGE.clear()
 
     for repo in repo_data:
         blob_name = repo.get("blob_store_name")
-        repo.update(task_statuses.get(blob_name, {"delete": 0, "compact": 0}))
+        presence_flags = task_statuses.get(blob_name, {"delete": 0, "compact": 0})
+        repo.update(presence_flags)
 
         # Обновляем метрики
         REPO_STORAGE.labels(
@@ -66,5 +68,5 @@ def fetch_repository_metrics(task_data: dict) -> list:
             compact_status=str(repo.get("compact", 0)),
         ).set(float(repo.get("size", 0)))
 
-    logger.info("✅ Метрики репозиториев собраны")
+    logger.info("✅ Метрики репозиториев собраны успешно")
     return repo_data

@@ -1,12 +1,13 @@
 import logging
 from prometheus_client import Gauge
+from typing import Optional, Literal
 
+# Настройка логгера
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(module)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# Метрика задач
 TASK_INFO = Gauge(
     "nexus_task_info",
     "Raw info about all Nexus tasks",
@@ -23,6 +24,16 @@ TASK_INFO = Gauge(
 )
 
 
+def parse_task_status(last_result: Optional[str]) -> tuple[int, str, str]:
+    if last_result == "OK":
+        return 1, "✅", "Успешно"
+    elif last_result == "ERROR":
+        return -1, "❌", "Ошибка"
+    elif last_result is None:
+        return 2, "⏳", "Не запускалась"
+    return -1, "⚠️", f"Неизвестно ({last_result})"
+
+
 def export_tasks_to_metrics(tasks: list) -> None:
     TASK_INFO.clear()
 
@@ -35,15 +46,16 @@ def export_tasks_to_metrics(tasks: list) -> None:
     for task in filtered_tasks:
         task_id = task.get("id", "N/A")
         task_name = task.get("name", "N/A")
+        task_type = task.get("type", "N/A")
         last_result = task.get("lastRunResult")
-        result_icon = "✅" if last_result == "OK" else "❌" if last_result == "ERROR" else "⚠️"
-        value = 0 if last_result == "OK" else 1 if last_result else -1
+
+        value, icon, label = parse_task_status(last_result)
 
         try:
             TASK_INFO.labels(
                 id=task_id,
                 name=str(task_name),
-                type=task.get("type", "N/A"),
+                type=task_type,
                 message=str(task.get("message", "N/A")),
                 current_state=task.get("currentState", "N/A"),
                 last_run_result=last_result or "null",
@@ -51,22 +63,22 @@ def export_tasks_to_metrics(tasks: list) -> None:
                 last_run=task.get("lastRun") or "null",
             ).set(value)
 
-            logger.info(f"📊 Задача: {task_name} | Тип: {task.get('type')} | Статус: {result_icon} {last_result}")
+            logger.info(f"📊 [{icon}] Задача '{task_name}' ({task_type}): {label}")
         except Exception as e:
             logger.warning(f"⚠️ Ошибка при экспорте метрик для задачи {task_id}: {e}", exc_info=True)
 
-    logger.info("📈 Метрики задач Nexus обновлены.")
+    logger.info("✅ Экспорт метрик задач завершён.")
 
 
 def fetch_task_metrics(task_data: dict | None) -> None:
     if not task_data or "items" not in task_data:
         logger.error("❌ Не удалось собрать метрики задач. Пропускаем сбор метрик!")
         return
-    logger.info("📥 Получены данные задач Nexus, начинаем экспорт в метрики...")
+    logger.info("📥 Получены данные задач Nexus. Начинаем экспорт в метрики...")
     export_tasks_to_metrics(task_data["items"])
 
 
-def extract_blob_name(message: str | None) -> str | None:
+def extract_blob_name(message: Optional[str]) -> Optional[str]:
     if not message:
         return None
     try:
@@ -76,38 +88,64 @@ def extract_blob_name(message: str | None) -> str | None:
         return None
 
 
-def filter_blobstore_tasks(data: dict | None) -> dict:
+def _get_blobstore_tasks(data: dict) -> list:
+    if not data or "items" not in data:
+        logger.error("❌ Невалидный формат данных задач")
+        return []
+    return [
+        task for task in data["items"]
+        if task.get("type") in ("blobstore.delete-temp-files", "blobstore.compact")
+    ]
+
+
+def filter_blobstore_task_details(data: dict | None) -> dict:
+    """Подробные статусы задач (для TASK_INFO)"""
     result = {}
     type_task_map = {
         "blobstore.delete-temp-files": "delete",
         "blobstore.compact": "compact",
     }
 
-    if not data or "items" not in data:
-        logger.error("❌ Невалидный формат данных задач")
-        return result
-
-    for task in data["items"]:
+    for task in _get_blobstore_tasks(data):
         task_type = task.get("type")
-        if task_type not in type_task_map:
-            continue
-
-        last_result = task.get("lastRunResult")
+        task_kind = type_task_map[task_type]
         blob_name = task.get("blobName") or extract_blob_name(task.get("message"))
 
         if not blob_name:
-            logger.warning(f"⚠️ Пропущена задача без blobName: {task.get('name', 'N/A')}")
+            logger.warning(f"❌ Задача '{task_kind}' не найдена или не задан blobName: {task.get('name', 'N/A')}")
             continue
 
-        status = 1 if last_result == "OK" else -1 if last_result == "ERROR" else 0
-        status_icon = "✅" if status == 1 else "❌" if status == -1 else "⚠️"
+        value, icon, label = parse_task_status(task.get("lastRunResult"))
 
         if blob_name not in result:
             result[blob_name] = {"delete": 0, "compact": 0}
 
-        result[blob_name][type_task_map[task_type]] = status
+        result[blob_name][task_kind] = value
+        logger.info(f"🧹 [{icon}] Задача '{task_kind}' для blob '{blob_name}': {label}")
 
-        logger.info(f"🧹 Задача '{type_task_map[task_type]}' для blob '{blob_name}': {status_icon} {last_result or 'unknown'}")
+    logger.info("✅ Анализ задач blobstore завершён.")
+    return result
 
-    logger.info("🔍 Анализ задач blobstore завершён.")
+
+def filter_blobstore_tasks_presence_only(data: dict | None) -> dict:
+    """Только факт наличия задачи (для REPO_STORAGE)"""
+    result = {}
+    type_task_map = {
+        "blobstore.delete-temp-files": "delete",
+        "blobstore.compact": "compact",
+    }
+
+    for task in _get_blobstore_tasks(data):
+        task_type = task.get("type")
+        task_kind = type_task_map[task_type]
+        blob_name = task.get("blobName") or extract_blob_name(task.get("message"))
+
+        if not blob_name:
+            continue
+
+        if blob_name not in result:
+            result[blob_name] = {"delete": 0, "compact": 0}
+
+        result[blob_name][task_kind] = 1  # просто флаг наличия
+
     return result
