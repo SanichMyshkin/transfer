@@ -1,72 +1,15 @@
 services:
-  # MinIO Instance 1
-  minio1:
-    image: quay.io/minio/minio:latest
-    restart: always
-    command: server --address ":9100" --console-address ":9101" http://minio{1...4}/data
-    environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio1-data:/data
-    networks:
-      - minio-net
-
-  # MinIO Instance 2
-  minio2:
-    image: quay.io/minio/minio:latest
-    restart: always
-    command: server --address ":9100" --console-address ":9101" http://minio{1...4}/data
-    environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio2-data:/data
-    networks:
-      - minio-net
-
-  # MinIO Instance 3
-  minio3:
-    image: quay.io/minio/minio:latest
-    restart: always
-    command: server --address ":9100" --console-address ":9101" http://minio{1...4}/data
-    environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio3-data:/data
-    networks:
-      - minio-net
-
-  # MinIO Instance 4
-  minio4:
-    image: quay.io/minio/minio:latest
-    restart: always
-    command: server --address ":9100" --console-address ":9101" http://minio{1...4}/data
-    environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio4-data:/data
-    networks:
-      - minio-net
-
-  # HAProxy for MinIO Load Balancing
+  # HAProxy для MinIO
   haproxy:
     image: haproxy:latest
     restart: always
     volumes:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     ports:
-      - "8200:9100"  # MinIO API
-      - "8201:9101"  # MinIO Console
+      - "8200:9100"
+      - "8201:9101"
     networks:
       - minio-net
-    depends_on:
-      - minio1
-      - minio2
-      - minio3
-      - minio4
 
   # Nexus Repository Manager
   nexus:
@@ -104,7 +47,7 @@ services:
     depends_on:
       - nexus
 
-  #PostgreSQL database
+  # PostgreSQL database
   postgres:
     image: postgres:16
     container_name: postgres
@@ -128,7 +71,7 @@ services:
     volumes:
       - ./victoria-metrics-data:/storage
     ports:
-      - "9091:8428"  # VictoriaMetrics UI и API
+      - "9091:8428"
     networks:
       - minio-net
     command:
@@ -169,11 +112,25 @@ services:
     depends_on:
       - victoriametrics
 
+  # MinIO одиночный
+  minio-single:
+    image: quay.io/minio/minio:latest
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9100:9000"
+      - "9101:9001"
+    volumes:
+      - minio-single-data:/data
+    networks:
+      - minio-net
+
+
 volumes:
-  minio1-data:
-  minio2-data:
-  minio3-data:
-  minio4-data:
+  minio-single-data:
   nexus-data:
   postgres-data:
   grafana-data:

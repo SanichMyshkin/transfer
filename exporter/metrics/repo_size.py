@@ -2,7 +2,7 @@ import logging
 
 from prometheus_client import Gauge
 from database.repository_query import get_repository_sizes, get_repository_data
-from metrics.tasks import filter_blobstore_tasks_presence_only  # ✅ заменили
+from metrics.tasks import filter_blobstore_tasks_presence_only
 
 # Настройка логирования
 logging.basicConfig(
@@ -43,7 +43,6 @@ def fetch_repository_metrics(task_data: dict) -> list:
         repo["size"] = repo_size.get(repo.get("repository_name"), 0)
 
     try:
-        # ✅ Получаем только информацию о наличии задач
         task_statuses = filter_blobstore_tasks_presence_only(task_data)
     except Exception as e:
         logger.error(f"❌ Ошибка при обработке задач blobstore: {e}")

@@ -1,10 +1,10 @@
 import logging
+from typing import Optional
 from prometheus_client import Gauge
-from typing import Optional, Literal
 
-# Настройка логгера
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(module)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(module)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -36,21 +36,12 @@ def parse_task_status(last_result: Optional[str]) -> tuple[int, str, str]:
 
 def export_tasks_to_metrics(tasks: list) -> None:
     TASK_INFO.clear()
-
-    filtered_tasks = [
-        task
-        for task in tasks
-        if task.get("type") in ("blobstore.delete-temp-files", "blobstore.compact")
-    ]
-
-    for task in filtered_tasks:
+    for task in tasks:
         task_id = task.get("id", "N/A")
         task_name = task.get("name", "N/A")
         task_type = task.get("type", "N/A")
         last_result = task.get("lastRunResult")
-
         value, icon, label = parse_task_status(last_result)
-
         try:
             TASK_INFO.labels(
                 id=task_id,
@@ -62,11 +53,9 @@ def export_tasks_to_metrics(tasks: list) -> None:
                 next_run=task.get("nextRun") or "null",
                 last_run=task.get("lastRun") or "null",
             ).set(value)
-
             logger.info(f"📊 [{icon}] Задача '{task_name}' ({task_type}): {label}")
         except Exception as e:
             logger.warning(f"⚠️ Ошибка при экспорте метрик для задачи {task_id}: {e}", exc_info=True)
-
     logger.info("✅ Экспорт метрик задач завершён.")
 
 
@@ -78,14 +67,17 @@ def fetch_task_metrics(task_data: dict | None) -> None:
     export_tasks_to_metrics(task_data["items"])
 
 
-def extract_blob_name(message: Optional[str]) -> Optional[str]:
-    if not message:
-        return None
-    try:
-        return message.split()[1]
-    except IndexError:
-        logger.warning(f"⚠️ Невозможно извлечь blobName из сообщения: '{message}'")
-        return None
+def extract_blob_name(task: dict) -> Optional[str]:
+    props = task.get("properties", {})
+    if "blobStoreName" in props:
+        return props["blobStoreName"]
+    message = task.get("message")
+    if message:
+        try:
+            return message.split()[1]
+        except IndexError:
+            logger.warning(f"⚠️ Невозможно извлечь blobName из сообщения: '{message}'")
+    return None
 
 
 def _get_blobstore_tasks(data: dict) -> list:
@@ -99,7 +91,6 @@ def _get_blobstore_tasks(data: dict) -> list:
 
 
 def filter_blobstore_task_details(data: dict | None) -> dict:
-    """Подробные статусы задач (для TASK_INFO)"""
     result = {}
     type_task_map = {
         "blobstore.delete-temp-files": "delete",
@@ -109,7 +100,7 @@ def filter_blobstore_task_details(data: dict | None) -> dict:
     for task in _get_blobstore_tasks(data):
         task_type = task.get("type")
         task_kind = type_task_map[task_type]
-        blob_name = task.get("blobName") or extract_blob_name(task.get("message"))
+        blob_name = extract_blob_name(task)
 
         if not blob_name:
             logger.warning(f"❌ Задача '{task_kind}' не найдена или не задан blobName: {task.get('name', 'N/A')}")
@@ -128,7 +119,6 @@ def filter_blobstore_task_details(data: dict | None) -> dict:
 
 
 def filter_blobstore_tasks_presence_only(data: dict | None) -> dict:
-    """Только факт наличия задачи (для REPO_STORAGE)"""
     result = {}
     type_task_map = {
         "blobstore.delete-temp-files": "delete",
@@ -138,14 +128,17 @@ def filter_blobstore_tasks_presence_only(data: dict | None) -> dict:
     for task in _get_blobstore_tasks(data):
         task_type = task.get("type")
         task_kind = type_task_map[task_type]
-        blob_name = task.get("blobName") or extract_blob_name(task.get("message"))
+        blob_name = extract_blob_name(task)
 
         if not blob_name:
+            logger.info(f"ℹ️ Пропущена задача без blobName: {task.get('name', 'N/A')}")
             continue
 
         if blob_name not in result:
             result[blob_name] = {"delete": 0, "compact": 0}
 
-        result[blob_name][task_kind] = 1  # просто флаг наличия
+        result[blob_name][task_kind] = 1
+        logger.info(f"✅ Обнаружена задача '{task_kind}' для blob '{blob_name}'")
 
+    logger.info("✅ Обнаружение наличия задач завершено.")
     return result
