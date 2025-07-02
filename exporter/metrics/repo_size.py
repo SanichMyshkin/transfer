@@ -2,14 +2,16 @@ import logging
 
 from prometheus_client import Gauge
 from database.repository_query import get_repository_sizes, get_repository_data
-from metrics.tasks import filter_blobstore_tasks_presence_only
+from database.jobs_query import get_jobs_data
 
 # Настройка логирования
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(module)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(module)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
+# Метрика размера репозиториев
 REPO_STORAGE = Gauge(
     "nexus_repo_size",
     "Total size of Nexus repositories in bytes",
@@ -24,8 +26,14 @@ REPO_STORAGE = Gauge(
     ],
 )
 
+# Допустимые типы задач
+ALLOWED_TASK_TYPES = {
+    "blobstore.delete-temp-files": "delete",
+    "blobstore.compact": "compact",
+}
 
-def fetch_repository_metrics(task_data: dict) -> list:
+
+def fetch_repository_metrics() -> list:
     logger.info("🔄 Сбор информации о репозиториях и метриках...")
 
     try:
@@ -43,12 +51,23 @@ def fetch_repository_metrics(task_data: dict) -> list:
         repo["size"] = repo_size.get(repo.get("repository_name"), 0)
 
     try:
-        task_statuses = filter_blobstore_tasks_presence_only(task_data)
+        task_data = get_jobs_data()
     except Exception as e:
-        logger.error(f"❌ Ошибка при обработке задач blobstore: {e}")
-        task_statuses = {}
+        logger.error(f"❌ Ошибка при получении задач из БД: {e}")
+        task_data = []
 
-    # Очищаем метрики перед обновлением
+    # Сопоставление blobStoreName -> наличие задач по типу
+    task_statuses = {}
+    for task in task_data:
+        task_type = task.get(".typeId")
+        blob_name = task.get("blobstoreName")
+        if task_type in ALLOWED_TASK_TYPES and blob_name:
+            status_key = ALLOWED_TASK_TYPES[task_type]
+            if blob_name not in task_statuses:
+                task_statuses[blob_name] = {"delete": 0, "compact": 0}
+            task_statuses[blob_name][status_key] = 1
+
+    # Очистка предыдущих метрик
     REPO_STORAGE.clear()
 
     for repo in repo_data:
@@ -56,7 +75,14 @@ def fetch_repository_metrics(task_data: dict) -> list:
         presence_flags = task_statuses.get(blob_name, {"delete": 0, "compact": 0})
         repo.update(presence_flags)
 
-        # Обновляем метрики
+        # Логирование по задачам
+        logger.info(
+            f"📦 Репозиторий: {repo.get('repository_name', 'unknown')} | "
+            f"blob: {blob_name} | "
+            f"delete: {'✅' if repo.get('delete') else '❌'} | "
+            f"compact: {'✅' if repo.get('compact') else '❌'}"
+        )
+
         REPO_STORAGE.labels(
             repo_name=repo.get("repository_name", "unknown"),
             repo_type=repo.get("repository_type", "unknown"),

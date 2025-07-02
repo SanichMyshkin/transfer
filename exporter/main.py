@@ -6,7 +6,7 @@ from config import NEXUS_API_URL, LAUNCH_INTERVAL, REPO_METRICS_INTERVAL
 
 from prometheus_client import start_http_server
 
-from metrics.utlis.api import get_from_nexus
+
 from metrics.repo_status import fetch_repositories_metrics
 from metrics.repo_size import fetch_repository_metrics
 from metrics.blobs_size import fetch_blob_metrics
@@ -42,14 +42,11 @@ def main():
         logger.info("Запуск сбора размера блобов...")
         fetch_blob_metrics(NEXUS_API_URL, auth)
 
-        logger.info("Получение задач Nexus...")
-        task_data = get_from_nexus(NEXUS_API_URL, "tasks", auth)
-
-        logger.info("Запуск сбора размера репозиториев...")
-        fetch_repository_metrics(task_data)
+        logger.info("Запуск сбора размера репозиториев и наличие задач очистки...")
+        fetch_repository_metrics()
 
         logger.info("Запуск сбора задач...")
-        fetch_task_metrics(task_data)
+        fetch_task_metrics(NEXUS_API_URL, "tasks", auth)
 
         logger.info("Запуск сбора Docker тегов...")
         fetch_docker_tags_metrics()
@@ -60,5 +57,10 @@ def main():
         time.sleep(LAUNCH_INTERVAL)
 
 
+
 if __name__ == "__main__":
     main()
+    #task = get_jobs_data()
+    #for i in task:
+    #    print(i)
+    #    print('-'*40)
