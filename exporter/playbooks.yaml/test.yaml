@@ -1,7 +1,7 @@
 ---
-- name: Download GitLab project configs to local path
+- name: Download GitLab project configs to host
   hosts: your_target_host
-  gather_facts: no
+  gather_facts: false
   vars:
     gitlab_url: "https://gitlab.example.com"
     private_token: "{{ lookup('env', 'GITLAB_TOKEN') }}"
@@ -24,53 +24,54 @@
       set_fact:
         projects: "{{ projects_response.json }}"
 
-    - name: Ensure target directory exists
+    - name: Ensure output directory exists
       file:
         path: "{{ output_dir }}"
         state: directory
         mode: '0755'
 
-    - name: Process each project
-      vars:
-        project_path: "{{ project.path_with_namespace | regex_replace('/', '_') }}"
+    - name: Get nexus-cleaner files for each project
+      uri:
+        url: "{{ gitlab_url }}/api/v4/projects/{{ item.id }}/repository/tree?path=nexus/nexus-cleaner&ref={{ branch }}"
+        method: GET
+        headers:
+          PRIVATE-TOKEN: "{{ private_token }}"
+        return_content: true
       loop: "{{ projects }}"
       loop_control:
-        loop_var: project
+        label: "{{ item.name }}"
+      register: cleaner_file_lists
+
+    - name: Download and save each file
+      vars:
+        project: "{{ projects[item.0] }}"
+        files: "{{ item.1.json }}"
+        project_prefix: "{{ project.path_with_namespace | regex_replace('/', '_') }}"
+      with_indexed_items: "{{ cleaner_file_lists.results }}"
+      when: item.1.status == 200 and item.1.json | length > 0
+      loop_control:
+        label: "{{ project.name }}"
       block:
 
-        - name: Get file list in nexus/nexus-cleaner
-          uri:
-            url: "{{ gitlab_url }}/api/v4/projects/{{ project.id }}/repository/tree?path=nexus/nexus-cleaner&ref={{ branch }}"
-            method: GET
-            headers:
-              PRIVATE-TOKEN: "{{ private_token }}"
-            return_content: true
-          register: cleaner_files
-          failed_when: false
-
-        - name: Skip if no files
-          when: cleaner_files.json | length == 0
-          debug:
-            msg: "No files found in {{ project.name }}"
-
-        - name: Download each file
-          when: cleaner_files.json | length > 0
-          loop: "{{ cleaner_files.json }}"
+        - name: Download individual files
+          vars:
+            project_id: "{{ project.id }}"
+          loop: "{{ files }}"
           loop_control:
             loop_var: file
-          block:
+          tasks:
 
             - name: Get raw file content
               uri:
-                url: "{{ gitlab_url }}/api/v4/projects/{{ project.id }}/repository/files/{{ file.path | urlencode }}/raw?ref={{ branch }}"
+                url: "{{ gitlab_url }}/api/v4/projects/{{ project_id }}/repository/files/{{ file.path | urlencode }}/raw?ref={{ branch }}"
                 method: GET
                 headers:
                   PRIVATE-TOKEN: "{{ private_token }}"
                 return_content: true
               register: raw_file
 
-            - name: Save file locally
+            - name: Save file to host
               copy:
-                dest: "{{ output_dir }}/{{ project.path_with_namespace | regex_replace('/', '_') }}_{{ file.name }}"
+                dest: "{{ output_dir }}/{{ project_prefix }}_{{ file.name }}"
                 content: "{{ raw_file.content }}"
                 mode: '0644'
