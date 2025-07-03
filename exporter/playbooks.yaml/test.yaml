@@ -1,0 +1,76 @@
+---
+- name: Download GitLab project configs to local path
+  hosts: your_target_host
+  gather_facts: no
+  vars:
+    gitlab_url: "https://gitlab.example.com"
+    private_token: "{{ lookup('env', 'GITLAB_TOKEN') }}"
+    group_id: "your_group_id"
+    branch: "master"
+    output_dir: "/opt/nexus/configs"
+
+  tasks:
+
+    - name: Get all projects in group
+      uri:
+        url: "{{ gitlab_url }}/api/v4/groups/{{ group_id }}/projects?per_page=100"
+        method: GET
+        headers:
+          PRIVATE-TOKEN: "{{ private_token }}"
+        return_content: true
+      register: projects_response
+
+    - name: Set list of projects
+      set_fact:
+        projects: "{{ projects_response.json }}"
+
+    - name: Ensure target directory exists
+      file:
+        path: "{{ output_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Process each project
+      vars:
+        project_path: "{{ project.path_with_namespace | regex_replace('/', '_') }}"
+      loop: "{{ projects }}"
+      loop_control:
+        loop_var: project
+      block:
+
+        - name: Get file list in nexus/nexus-cleaner
+          uri:
+            url: "{{ gitlab_url }}/api/v4/projects/{{ project.id }}/repository/tree?path=nexus/nexus-cleaner&ref={{ branch }}"
+            method: GET
+            headers:
+              PRIVATE-TOKEN: "{{ private_token }}"
+            return_content: true
+          register: cleaner_files
+          failed_when: false
+
+        - name: Skip if no files
+          when: cleaner_files.json | length == 0
+          debug:
+            msg: "No files found in {{ project.name }}"
+
+        - name: Download each file
+          when: cleaner_files.json | length > 0
+          loop: "{{ cleaner_files.json }}"
+          loop_control:
+            loop_var: file
+          block:
+
+            - name: Get raw file content
+              uri:
+                url: "{{ gitlab_url }}/api/v4/projects/{{ project.id }}/repository/files/{{ file.path | urlencode }}/raw?ref={{ branch }}"
+                method: GET
+                headers:
+                  PRIVATE-TOKEN: "{{ private_token }}"
+                return_content: true
+              register: raw_file
+
+            - name: Save file locally
+              copy:
+                dest: "{{ output_dir }}/{{ project.path_with_namespace | regex_replace('/', '_') }}_{{ file.name }}"
+                content: "{{ raw_file.content }}"
+                mode: '0644'
