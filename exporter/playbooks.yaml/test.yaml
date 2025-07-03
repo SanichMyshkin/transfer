@@ -1,5 +1,5 @@
 ---
-- name: Download GitLab project configs to host
+- name: Download GitLab nexus-cleaner files to target host
   hosts: your_target_host
   gather_facts: false
   vars:
@@ -20,7 +20,7 @@
         return_content: true
       register: projects_response
 
-    - name: Set list of projects
+    - name: Set project list
       set_fact:
         projects: "{{ projects_response.json }}"
 
@@ -30,7 +30,7 @@
         state: directory
         mode: '0755'
 
-    - name: Get nexus-cleaner files for each project
+    - name: Get file list from each project
       uri:
         url: "{{ gitlab_url }}/api/v4/projects/{{ item.id }}/repository/tree?path=nexus/nexus-cleaner&ref={{ branch }}"
         method: GET
@@ -40,38 +40,44 @@
       loop: "{{ projects }}"
       loop_control:
         label: "{{ item.name }}"
-      register: cleaner_file_lists
+      register: file_lists
 
-    - name: Download and save each file
+    - name: Flatten files to download
+      set_fact:
+        files_to_download: >-
+          {{
+            file_lists.results
+            | zip(projects)
+            | map('combine')
+            | map('combine', {'files': attribute('json')})
+            | selectattr('files', 'defined')
+            | selectattr('files', '!=', [])
+            | list
+          }}
+
+    - name: Download and save files
       vars:
-        project: "{{ projects[item.0] }}"
-        files: "{{ item.1.json }}"
-        project_prefix: "{{ project.path_with_namespace | regex_replace('/', '_') }}"
-      with_indexed_items: "{{ cleaner_file_lists.results }}"
-      when: item.1.status == 200 and item.1.json | length > 0
+        project_id: "{{ item.1.id }}"
+        project_name: "{{ item.1.path_with_namespace | regex_replace('/', '_') }}"
+      loop: "{{ files_to_download | map(attribute='files') | list | zip(files_to_download | map(attribute='item')) | list }}"
       loop_control:
-        label: "{{ project.name }}"
-      block:
+        label: "{{ item.1.name }}"
+      delegate_to: localhost
+      with_nested:
+        - "{{ item.0 }}"
+      tasks:
 
-        - name: Download individual files
-          vars:
-            project_id: "{{ project.id }}"
-          loop: "{{ files }}"
-          loop_control:
-            loop_var: file
-          tasks:
+        - name: Get file content
+          uri:
+            url: "{{ gitlab_url }}/api/v4/projects/{{ project_id }}/repository/files/{{ item.path | urlencode }}/raw?ref={{ branch }}"
+            method: GET
+            headers:
+              PRIVATE-TOKEN: "{{ private_token }}"
+            return_content: true
+          register: raw_file
 
-            - name: Get raw file content
-              uri:
-                url: "{{ gitlab_url }}/api/v4/projects/{{ project_id }}/repository/files/{{ file.path | urlencode }}/raw?ref={{ branch }}"
-                method: GET
-                headers:
-                  PRIVATE-TOKEN: "{{ private_token }}"
-                return_content: true
-              register: raw_file
-
-            - name: Save file to host
-              copy:
-                dest: "{{ output_dir }}/{{ project_prefix }}_{{ file.name }}"
-                content: "{{ raw_file.content }}"
-                mode: '0644'
+        - name: Save file
+          copy:
+            dest: "{{ output_dir }}/{{ project_name }}_{{ item.name }}"
+            content: "{{ raw_file.content }}"
+            mode: '0644'
