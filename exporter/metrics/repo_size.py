@@ -19,7 +19,7 @@ REPO_STORAGE = Gauge(
         "repo_name",
         "repo_type",
         "repo_format",
-        "repo_blob_name",
+        "blob_name",
         "internal_cleanup_policy",  # внутренняя политика
         "custom_cleaner_url",       # внешняя политика
         "delete_temp_status",
@@ -112,7 +112,7 @@ def fetch_repository_metrics() -> list:
             repo_name=repo_name,
             repo_type=repo.get("repository_type", "unknown"),
             repo_format=repo.get("format", "unknown"),
-            repo_blob_name=blob_name,
+            blob_name=blob_name,
             internal_cleanup_policy=internal_policy,
             custom_cleaner_url=custom_cleaner_url,
             delete_temp_status=str(repo.get("delete", 0)),
