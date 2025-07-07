@@ -1,47 +1,84 @@
-import requests
+import gitlab
 import yaml
+import logging
+from io import StringIO
+from config import GITLAB_URL, GITLAB_TOKEN, GITLAB_BRANCH
 
-# Настройки
-GITLAB_TOKEN = 'your_token'
-GITLAB_URL = 'https://gitlab.com'
-GROUP_ID = 'your_group_id_or_path'  # например 'my-group'
+# ───── Логирование ───── #
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
-HEADERS = {'PRIVATE-TOKEN': GITLAB_TOKEN}
-TARGET_FILES = ['.gitlab-ci.yml', 'config/app.yaml']
-DEFAULT_BRANCH = 'main'
+# ───── Константы ───── #
+TARGET_PATH = "nexus/nexus-cleaner"
 
-def get_projects_in_group(group_id):
-    url = f"{GITLAB_URL}/api/v4/groups/{group_id}/projects"
-    response = requests.get(url, headers=HEADERS)
-    return response.json() if response.status_code == 200 else []
+# ───── Подключение к GitLab ───── #
+gl = gitlab.Gitlab(GITLAB_URL, private_token=GITLAB_TOKEN)
+gl.auth()
 
-def get_file_content(project_id, file_path, ref=DEFAULT_BRANCH):
-    url = f"{GITLAB_URL}/api/v4/projects/{requests.utils.quote(str(project_id), safe='')}/repository/files/{requests.utils.quote(file_path, safe='')}/raw"
-    params = {'ref': ref}
-    response = requests.get(url, headers=HEADERS, params=params)
-    if response.status_code == 200:
-        return response.text
-    return None
+result = {}           # {'repo_name': 'gitlab_url'}
+repo_sources = {}     # {'repo_name': [file1, file2]}
+files_processed = 0
+repos_found = 0
 
-def parse_yaml(content):
+logger.info(f"🔗 Подключено к GitLab: {GITLAB_URL}")
+logger.info("🔍 Начинаем обход проектов...")
+
+# ───── Обход проектов ───── #
+projects = gl.projects.list(all=True)
+
+for project in projects:
     try:
-        return yaml.safe_load(content)
-    except yaml.YAMLError as e:
-        print(f"Ошибка разбора YAML: {e}")
-        return None
+        items = project.repository_tree(path=TARGET_PATH, recursive=True)
+        yaml_files = [
+            item for item in items
+            if item['type'] == 'blob' and item['name'].endswith(('.yml', '.yaml'))
+        ]
 
-def main():
-    projects = get_projects_in_group(GROUP_ID)
-    for project in projects:
-        print(f"📦 {project['name']}")
-        for file_path in TARGET_FILES:
-            content = get_file_content(project['id'], file_path)
-            if content:
-                data = parse_yaml(content)
-                print(f"🔹 Файл: {file_path}")
-                print(data)
-            else:
-                print(f"⚠️ Файл {file_path} не найден")
+        if not yaml_files:
+            continue
 
-if __name__ == "__main__":
-    main()
+        logger.info(f"📁 Проект {project.path_with_namespace}: найдено {len(yaml_files)} yaml-файлов")
+
+        for file in yaml_files:
+            file_path = file['path']
+            try:
+                f = project.files.get(file_path=file_path, ref=GITLAB_BRANCH)
+                content = f.decode().decode('utf-8')
+                data = yaml.safe_load(StringIO(content))
+                files_processed += 1
+
+                if isinstance(data, dict) and 'repo_names' in data:
+                    for repo_name in data['repo_names']:
+                        link = f"{GITLAB_URL}/{project.path_with_namespace}/-/blob/{GITLAB_BRANCH}/{file_path}"
+
+                        if repo_name in result:
+                            logger.warning(
+                                f"⚠️ Повтор: '{repo_name}' найден в нескольких конфигурациях:\n"
+                                f"    - уже был: {repo_sources[repo_name][-1]}\n"
+                                f"    - сейчас: {link}"
+                            )
+
+                        result[repo_name] = link
+                        repo_sources.setdefault(repo_name, []).append(link)
+                        repos_found += 1
+
+            except Exception as e:
+                logger.error(f"❌ Ошибка чтения {file_path} в {project.path_with_namespace}: {e}")
+
+    except gitlab.exceptions.GitlabGetError:
+        logger.info(f"⏭️ Пропуск {project.path_with_namespace}: путь '{TARGET_PATH}' не найден.")
+        continue
+
+# ───── Финальный отчёт ───── #
+logger.info("✅ Обработка завершена.")
+logger.info(f"📄 Всего yaml-файлов обработано: {files_processed}")
+logger.info(f"📦 Уникальных repo_names найдено: {len(result)}")
+logger.info(f"🔁 Всего вхождений repo_names (включая повторы): {repos_found}")
+
+# ───── Вывод результата ───── #
+print("\nРезультат:")
+for repo, link in result.items():
+    print(f"{repo}: {link}")
