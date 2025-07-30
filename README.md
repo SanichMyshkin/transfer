@@ -9,24 +9,24 @@ Orient поддерживается до версии Nexus 3.70.0.
 
 Поле `nexus.orient.enabled - true` указывает на тип используемой базы данных
 
-![](migration/image.png)
+![](update-database/image.png)
 
 Для старта миграции небоходимо выполнить бекап текущей базы данных
 
 Во вкладке `System`  &#8594; `Task` нербходимо создать задачу `Admin - Export database for backup`
 И заполнить следующим образом
 
-![alt text](migration/image-2.png)
+![alt text](update-database/image-2.png)
 
 `Backup location:` - указывается относительный путь, слeдоватьельно бекапы будут распологаться по следующему пути - `$data-dir/back`
 
 Далее необходимо запустить созданную задачу
 Если все сделано верно, то после нажатия на кнопку `RUN`, строка `Last result` - выведет сообщение *Ok*
 
-![](migration/image-3.png)
+![](update-database/image-3.png)
 
 В указанной директории будут созданы следующие файлы
-![alt text](migration/image-4.png)
+![alt text](update-database/image-4.png)
 
 Теперь необходимо скачать утилиту миграции в папку с __бекапами__ 
 Мигратор можно скачать [тут](https://help.sonatype.com/en/orientdb-downloads.html#database-migrator-utility-for-3-70-x) или же: 
@@ -78,7 +78,7 @@ nexus.datastore.enabled=true
 
 Запускаем контейнер и проверям тип базы данных
 
-![alt text](migration/image-5.png)
+![alt text](update-database/image-5.png)
 
 ---
 
@@ -146,11 +146,11 @@ docker compose up -d
 
 Для начала необходимо завести задачу `Create Admin - Backup H2 Databases Task`
 
-![alt text](migration/image-6.png)
+![alt text](update-database/image-6.png)
 
 После выполнения должен будет появиться файл
 
-![alt text](migration/image-7.png)
+![alt text](update-database/image-7.png)
 
 Далее нужно скачать [мигратор](https://help.sonatype.com/en/download.html#download-nexus-repository-database-migrator) с оффициального сайта в директорию - `$data-dir/db`
 
@@ -225,10 +225,10 @@ VACUUM(FULL, ANALYZE, VERBOSE);
  - `Rebuild repository search`
 
 Теперь ваша база данных использует внешнюю PostgreSQL
-![alt text](/migration/image-8.png)
+![alt text](/update-database/image-8.png)
 
 Далее необходимо запатчить Nexus, так как в нем сотит ограничение на 200.000 запросов в сутки, что для корпоративных сред является очень мелким значением
-![alt text](/migration/image9.png)
+![alt text](/update-database/image9.png)
 
 Для это необходимо войти в базу данных любым удобным способом
 

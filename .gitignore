@@ -206,3 +206,5 @@ logs/
 
 metrics_py/.vscode/
 
+jenkins_home/
+
