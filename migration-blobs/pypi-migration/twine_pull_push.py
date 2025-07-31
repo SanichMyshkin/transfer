@@ -88,13 +88,19 @@ def is_package_uploaded(name, version):
 def pip_download(name, version, download_dir):
     log.info(f"⬇️ pip download: {name}=={version}")
     try:
-        subprocess.run([
-            "pip", "download",
-            f"{name}=={version}",
-            "--no-deps",
-            "--index-url", SOURCE_INDEX_URL,
-            "-d", download_dir
-        ], check=True)
+        subprocess.run(
+            [
+                "pip",
+                "download",
+                f"{name}=={version}",
+                "--no-deps",
+                "--index-url",
+                SOURCE_INDEX_URL,
+                "-d",
+                download_dir,
+            ],
+            check=True,
+        )
     except subprocess.CalledProcessError as e:
         log.warning(f"⚠️ pip не смог скачать {name}=={version}: {e}")
 
@@ -102,14 +108,21 @@ def pip_download(name, version, download_dir):
 def twine_upload(file_path):
     log.info(f"⬆️ Загружаем {os.path.basename(file_path)} через twine")
     try:
-        subprocess.run([
-            "twine", "upload",
-            "--repository-url", TARGET_UPLOAD_URL,
-            "-u", USERNAME,
-            "-p", PASSWORD,
-            "--non-interactive",
-            file_path
-        ], check=True)
+        subprocess.run(
+            [
+                "twine",
+                "upload",
+                "--repository-url",
+                TARGET_UPLOAD_URL,
+                "-u",
+                USERNAME,
+                "-p",
+                PASSWORD,
+                "--non-interactive",
+                file_path,
+            ],
+            check=True,
+        )
     except subprocess.CalledProcessError as e:
         log.error(f"❌ Ошибка загрузки {file_path}: {e}")
 
@@ -137,7 +150,9 @@ def migrate_pypi_packages():
 
 def main():
     # Сделать что бы мы могли передавать через параметр наши репы
-    parser = argparse.ArgumentParser(description="Миграция PyPI пакетов между Nexus-репозиториями через pip и twine")
+    parser = argparse.ArgumentParser(
+        description="Миграция PyPI пакетов между Nexus-репозиториями через pip и twine"
+    )
     args = parser.parse_args()
 
     migrate_pypi_packages()

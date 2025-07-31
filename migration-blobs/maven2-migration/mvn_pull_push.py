@@ -113,7 +113,9 @@ def deploy_with_maven(component, tmpdir):
         log.info(f"⬆️  Загружаем {filename} через Maven")
 
         args = [
-            "mvn", "--settings", settings_path,
+            "mvn",
+            "--settings",
+            settings_path,
             "deploy:deploy-file",
             f"-DrepositoryId=inline",
             f"-Durl={TARGET_UPLOAD_URL}",
@@ -122,7 +124,7 @@ def deploy_with_maven(component, tmpdir):
             f"-DartifactId={artifact_id}",
             f"-Dversion={version}",
             f"-Dpackaging={packaging}",
-            "-DgeneratePom=false"
+            "-DgeneratePom=false",
         ]
 
         try:
@@ -144,7 +146,9 @@ def migrate_maven_packages():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Миграция Maven2 артефактов между Nexus репозиториями")
+    parser = argparse.ArgumentParser(
+        description="Миграция Maven2 артефактов между Nexus репозиториями"
+    )
     args = parser.parse_args()
 
     migrate_maven_packages()

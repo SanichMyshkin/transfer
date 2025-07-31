@@ -270,3 +270,33 @@ TRUNCATE TABLE METRICS_LOG;
 TRUNCATE TABLE AGGREGATED_METRICS;
 ```
 
+# Отключение части телеметрии (3.81)
+
+Nexus отправляет запрос на `/service/rest/v1/user-telemetry/javascript`, запуская процесс сбора телеметрии.
+В логах backend можно заметить обращения к `clm.sonatype.com`. Если соединение с этим доменом доступно, запросы выполняются успешно, и данные телеметрии передаются. Если же доступ заблокирован, интерфейс может зависать или не загружаться (в некоторых случаях).
+
+Для отключения этой функции можно перехватывать подобные запросы на уровне reverse proxy.
+Пример конфигурации для `nginx`:
+
+```conf
+location = /service/rest/v1/user-telemetry/javascript {
+    default_type application/javascript;
+    return 200 '
+      console.log("Stub userTelemetry loaded");
+      window.userTelemetry = {
+        initialize: function(config) {
+          console.log("Stub userTelemetry initialized with config:", config);
+        }
+      };
+    ';
+}
+
+location = /service/rest/v1/user-telemetry/config {
+    default_type application/json;
+    return 200 '{}';
+}
+
+location ~ ^/service/rest/v1/user-telemetry/ {
+    return 204;
+}
+```
