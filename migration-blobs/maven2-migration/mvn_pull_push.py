@@ -5,19 +5,31 @@ import requests
 import subprocess
 import urllib3
 import argparse
+import sys
+from dotenv import load_dotenv
 
-# === Конфигурация ===
-NEXUS_URL = "https://nexus.sanich.space"
-USERNAME = "admin"
-PASSWORD = "admin123"
+# === Логгирование ===
+logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+log = logging.getLogger(__name__)
+# === Отключаем SSL предупреждения ===
+urllib3.disable_warnings()
+
+load_dotenv()
+
+# === Чтение конфигурации из переменных окружения ===
+NEXUS_URL = os.environ.get("NEXUS_URL")
+USERNAME = os.environ.get("USERNAME")
+PASSWORD = os.environ.get("PASSWORD")
+
+if not all([NEXUS_URL, USERNAME, PASSWORD]):
+    log.error("❌ Не заданы переменные окружения: NEXUS_URL, NEXUS_USERNAME, NEXUS_PASSWORD")
+    sys.exit(1)
 
 SOURCE_REPO = "source-maven2"
 TARGET_REPO = "target-maven2"
 TARGET_UPLOAD_URL = f"{NEXUS_URL}/repository/{TARGET_REPO}/"
 
-# === Логгирование ===
-logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-log = logging.getLogger(__name__)
+
 
 # === Отключаем SSL предупреждения ===
 urllib3.disable_warnings()

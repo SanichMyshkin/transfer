@@ -5,13 +5,30 @@ import logging
 import subprocess
 import requests
 import urllib3
+import sys
+import os
+from dotenv import load_dotenv
+
 
 urllib3.disable_warnings()
 
-# === Конфигурация ===
-NEXUS_URL = "https://nexus.sanich.space"
-USERNAME = "usr"
-PASSWORD = "pswrd"
+# === Логирование ===
+logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+log = logging.getLogger(__name__)
+
+
+load_dotenv()
+
+# === Чтение конфигурации из переменных окружения ===
+NEXUS_URL = os.environ.get("NEXUS_URL")
+USERNAME = os.environ.get("USERNAME")
+PASSWORD = os.environ.get("PASSWORD")
+
+if not all([NEXUS_URL, USERNAME, PASSWORD]):
+    log.error(
+        "❌ Не заданы переменные окружения: NEXUS_URL, NEXUS_USERNAME, NEXUS_PASSWORD"
+    )
+    sys.exit(1)
 
 SOURCE_REPO = "test-migration"
 TARGET_REPO = "dckr"
@@ -21,9 +38,6 @@ TARGET_REGISTRY = "sanich.space:8089"
 # Образ с Skopeo внутри Docker
 SKOPEO_IMAGE = "quay.io/skopeo/stable:latest"
 
-# === Логирование ===
-logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-log = logging.getLogger(__name__)
 
 # === Requests-сессия ===
 session = requests.Session()

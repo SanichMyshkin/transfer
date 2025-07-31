@@ -5,17 +5,11 @@ import logging
 import requests
 import urllib3
 import argparse
+import sys
+from dotenv import load_dotenv
 
-# === Конфигурация ===
-NEXUS_URL = "https://nexus.sanich.space"
-USERNAME = "usr"
-PASSWORD = "pswrd"
 
-SOURCE_REPO = "test-pypi"
-TARGET_REPO = "pypi-migrate"
-
-SOURCE_INDEX_URL = f"{NEXUS_URL}/repository/{SOURCE_REPO}/simple"
-TARGET_UPLOAD_URL = f"{NEXUS_URL}/repository/{TARGET_REPO}/"
+load_dotenv()
 
 # === Логгирование ===
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
@@ -23,6 +17,22 @@ log = logging.getLogger(__name__)
 
 # === Отключаем SSL предупреждения ===
 urllib3.disable_warnings()
+
+# === Чтение конфигурации из переменных окружения ===
+NEXUS_URL = os.environ.get("NEXUS_URL")
+USERNAME = os.environ.get("USERNAME")
+PASSWORD = os.environ.get("PASSWORD")
+
+if not all([NEXUS_URL, USERNAME, PASSWORD]):
+    log.error("❌ Не заданы переменные окружения: NEXUS_URL, NEXUS_USERNAME, NEXUS_PASSWORD")
+    sys.exit(1)
+
+# === Репозитории ===
+SOURCE_REPO = "test-pypi"
+TARGET_REPO = "pypi-migrate"
+
+SOURCE_INDEX_URL = f"{NEXUS_URL}/repository/{SOURCE_REPO}/simple"
+TARGET_UPLOAD_URL = f"{NEXUS_URL}/repository/{TARGET_REPO}/"
 
 # === requests с авторизацией ===
 session = requests.Session()
@@ -87,12 +97,14 @@ def is_package_uploaded(name, version):
 
 def pip_download(name, version, download_dir):
     log.info(f"⬇️ pip download: {name}=={version}")
+
     try:
         subprocess.run(
             [
                 "pip",
                 "download",
                 f"{name}=={version}",
+                "--only-binary=:all:",
                 "--no-deps",
                 "--index-url",
                 SOURCE_INDEX_URL,
@@ -102,7 +114,25 @@ def pip_download(name, version, download_dir):
             check=True,
         )
     except subprocess.CalledProcessError as e:
-        log.warning(f"⚠️ pip не смог скачать {name}=={version}: {e}")
+        log.warning(f"⚠️ pip не смог скачать wheel {name}=={version}: {e}")
+
+    try:
+        subprocess.run(
+            [
+                "pip",
+                "download",
+                f"{name}=={version}",
+                "--no-binary=:all:",
+                "--no-deps",
+                "--index-url",
+                SOURCE_INDEX_URL,
+                "-d",
+                download_dir,
+            ],
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        log.warning(f"⚠️ pip не смог скачать sdist {name}=={version}: {e}")
 
 
 def twine_upload(file_path):
@@ -136,20 +166,19 @@ def migrate_pypi_packages():
     with tempfile.TemporaryDirectory() as tmpdir:
         for name, version in packages:
             if is_package_uploaded(name, version):
-                continue  # Пропускаем уже загруженные
+                continue
 
             pip_download(name, version, tmpdir)
 
         for fname in os.listdir(tmpdir):
             fpath = os.path.join(tmpdir, fname)
-            if fname.endswith((".whl", ".tar.gz", ".zip")):
+            if fname.endswith((".whl", ".tar.gz", ".zip", ".tgz")):
                 twine_upload(fpath)
             else:
-                log.warning(f"Пропущен неподдерживаемый файл: {fname}")
+                log.warning(f"⚠️ Пропущен неподдерживаемый файл: {fname}")
 
 
 def main():
-    # Сделать что бы мы могли передавать через параметр наши репы
     parser = argparse.ArgumentParser(
         description="Миграция PyPI пакетов между Nexus-репозиториями через pip и twine"
     )

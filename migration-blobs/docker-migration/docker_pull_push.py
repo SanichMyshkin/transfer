@@ -6,22 +6,36 @@ import subprocess
 import requests
 import docker
 import urllib3
+import sys
+import os
+from dotenv import load_dotenv
+
 
 urllib3.disable_warnings()
 
-# === Константы подключения ===
-NEXUS_URL = "https://nexus.sanich.space"
-USERNAME = "usr"
-PASSWORD = "pswrd"
+# === Логирование ===
+logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+log = logging.getLogger(__name__)
+
+
+load_dotenv()
+
+# === Чтение конфигурации из переменных окружения ===
+NEXUS_URL = os.environ.get("NEXUS_URL")
+USERNAME = os.environ.get("USERNAME")
+PASSWORD = os.environ.get("PASSWORD")
+
+if not all([NEXUS_URL, USERNAME, PASSWORD]):
+    log.error(
+        "❌ Не заданы переменные окружения: NEXUS_URL, NEXUS_USERNAME, NEXUS_PASSWORD"
+    )
+    sys.exit(1)
 
 SOURCE_REPO = "docker-file-single-1"
 TARGET_REPO = "dckr"
 SOURCE_REGISTRY = "sanich.space:5000"
 TARGET_REGISTRY = "sanich.space:8088"
 
-# === Логирование ===
-logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
-log = logging.getLogger(__name__)
 
 # === Requests с auth ===
 session = requests.Session()
@@ -38,7 +52,7 @@ def docker_login(registry, username, password):
             input=password.encode(),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            check=True
+            check=True,
         )
         log.info(result.stdout.decode().strip())
     except subprocess.CalledProcessError as e:
@@ -75,7 +89,6 @@ def get_images_from_repo(repo_name):
     return images
 
 
-
 def pull_tag_push(images):
     docker_client = docker.from_env()
 
@@ -91,8 +104,8 @@ def pull_tag_push(images):
 
         log.info(f"📤 Push: {target_image}")
         for line in docker_client.images.push(target_image, stream=True, decode=True):
-            if 'status' in line:
-                log.debug(line['status'])
+            if "status" in line:
+                log.debug(line["status"])
 
         log.info("🗑 Удаление локальных образов")
         try:
@@ -107,7 +120,6 @@ def pull_tag_push(images):
             log.warning(f"Не удалось удалить {target_image}: {e}")
 
 
-
 def delete_repo_if_unused(repo_name):
     log.info(f"🧹 Удаление репозитория {repo_name} и связанного blob store")
     # 1. Проверим, какие еще репозитории используют тот же blob store
@@ -119,14 +131,22 @@ def delete_repo_if_unused(repo_name):
         return
 
     blob_store = target_repo.get("storage", {}).get("blobStoreName")
-    users_of_blob = [r["name"] for r in repos if r.get("storage", {}).get("blobStoreName") == blob_store]
+    users_of_blob = [
+        r["name"]
+        for r in repos
+        if r.get("storage", {}).get("blobStoreName") == blob_store
+    ]
 
     if len(users_of_blob) > 1:
-        log.warning(f"Блоб {blob_store} также используется в: {users_of_blob}. Не удаляем.")
+        log.warning(
+            f"Блоб {blob_store} также используется в: {users_of_blob}. Не удаляем."
+        )
     else:
         # Удаляем репозиторий
         log.info(f"Удаляем репозиторий {repo_name}")
-        del_resp = session.delete(f"{NEXUS_URL}/service/rest/v1/repositories/{repo_name}")
+        del_resp = session.delete(
+            f"{NEXUS_URL}/service/rest/v1/repositories/{repo_name}"
+        )
         if del_resp.status_code == 204:
             log.info(f"✅ Репозиторий {repo_name} удалён")
         else:
@@ -135,8 +155,14 @@ def delete_repo_if_unused(repo_name):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Миграция Docker-образов между репозиториями Nexus")
-    parser.add_argument("--cleanup", action="store_true", help="Удалить исходный репозиторий и блоб (если не используется)")
+    parser = argparse.ArgumentParser(
+        description="Миграция Docker-образов между репозиториями Nexus"
+    )
+    parser.add_argument(
+        "--cleanup",
+        action="store_true",
+        help="Удалить исходный репозиторий и блоб (если не используется)",
+    )
     args = parser.parse_args()
 
     # Docker логины
