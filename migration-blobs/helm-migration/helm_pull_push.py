@@ -32,6 +32,7 @@ session.auth = (USERNAME, PASSWORD)
 session.verify = False
 session.headers.update({"Accept": "application/json"})
 
+
 def get_all_helm_charts(repo_name):
     log.info(f"📋 Получаем список Helm-чартов из репозитория {repo_name}")
     url = f"{NEXUS_URL}/service/rest/v1/components"
@@ -59,6 +60,7 @@ def get_all_helm_charts(repo_name):
     log.info(f"🔍 Найдено {len(charts)} чартов")
     return charts
 
+
 def is_chart_uploaded(name, version):
     url = f"{NEXUS_URL}/service/rest/v1/components"
     continuation_token = None
@@ -83,6 +85,7 @@ def is_chart_uploaded(name, version):
 
     return False
 
+
 def download_chart(name, version, download_dir):
     url = f"{NEXUS_URL}/repository/{SOURCE_REPO}/{name}-{version}.tgz"
     log.info(f"⬇️ Скачиваем {name}-{version}.tgz из {SOURCE_REPO}")
@@ -99,6 +102,7 @@ def download_chart(name, version, download_dir):
         log.warning(f"⚠️ Ошибка загрузки {name}-{version}: {e}")
         return None
 
+
 def upload_chart(filepath):
     filename = os.path.basename(filepath)
     upload_url = f"{NEXUS_URL}/repository/{TARGET_REPO}/{filename}"
@@ -108,6 +112,7 @@ def upload_chart(filepath):
         r.raise_for_status()
     except requests.RequestException as e:
         log.error(f"❌ Ошибка загрузки {filename}: {e}")
+
 
 def migrate_helm_charts():
     charts = get_all_helm_charts(SOURCE_REPO)
@@ -125,6 +130,7 @@ def migrate_helm_charts():
                 upload_chart(chart_path)
 
     log.info("✅ Миграция Helm-чартов завершена")
+
 
 if __name__ == "__main__":
     migrate_helm_charts()

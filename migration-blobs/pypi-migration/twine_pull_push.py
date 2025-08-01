@@ -24,7 +24,9 @@ USERNAME = os.environ.get("USERNAME")
 PASSWORD = os.environ.get("PASSWORD")
 
 if not all([NEXUS_URL, USERNAME, PASSWORD]):
-    log.error("❌ Не заданы переменные окружения: NEXUS_URL, NEXUS_USERNAME, NEXUS_PASSWORD")
+    log.error(
+        "❌ Не заданы переменные окружения: NEXUS_URL, NEXUS_USERNAME, NEXUS_PASSWORD"
+    )
     sys.exit(1)
 
 # === Репозитории ===

@@ -4,7 +4,6 @@ import tempfile
 import logging
 import requests
 import urllib3
-from urllib.parse import urljoin
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -119,7 +118,9 @@ def verify_all_files(local_base: Path, asset_paths):
             failed.append(str(relative_path))
 
     if failed:
-        log.warning(f"❗ Проверка завершена с ошибками. Несовпавшие файлы: {len(failed)}")
+        log.warning(
+            f"❗ Проверка завершена с ошибками. Несовпавшие файлы: {len(failed)}"
+        )
         for f in failed:
             log.warning(f"  - {f}")
     else:
